@@ -1,0 +1,7 @@
+pymupdf
+arxiv
+sentence-transformers
+faiss-cpu
+tqdm
+pydantic
+python-dotenv
