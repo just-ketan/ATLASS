@@ -14,7 +14,8 @@ class VectorStore:
     
     def search(self, query_embedding, k=5):
         distances, indices = self.index.search(query_embedding, k)
-        res = []
-        for idx in indices[0]:
-            res.append(self.texts[idx])
-        return res
+        results = []
+        for i, idx in enumerate(indices[0]):
+            results.append((self.texts[idx], distances[0][i]))
+
+        return results

@@ -14,10 +14,13 @@ class PaperProcessor:
         text = parser.extract_text()
 
         extractor = SectionExtractor()
-        sections = extractor.extract(text)
+        # sections = extractor.extract(text)
 
+        # paper_json = {
+        #     "sections" : sections
+        # }
         paper_json = {
-            "sections" : sections
+            "full_text": text
         }
 
         filename = os.path.basename(pdf_path).replace(".pdf", ".json")
