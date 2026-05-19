@@ -1,6 +1,6 @@
 import json
 import re
-
+from collections import defaultdict
 from .chunker import TextChunker
 from .embedder import Embedder
 from .vector_store import VectorStore
@@ -68,25 +68,38 @@ class PaperMemory:
         with open(json_path, "r") as f:
             data = json.load(f)
 
-        text = data["full_text"]
-        raw_chunks = self.chunker.chunk(text)
+        # text = data["full_text"]
+        # raw_chunks = self.chunker.chunk(text)
 
-        all_chunks = []
-
-        for i, chunk in enumerate(raw_chunks):
-
-            if not self.is_useful_chunk(chunk):
+        self.chunk_metadata = {}
+        self.section_chunks = []
+        for section in data["sections"]:
+            title = section["title"].lower()
+            if "reference" in title or "appendix" in title:
                 continue
+            text = section["text"]
+            chunks = self.chunker.chunk(text)
+            chunk_id=0
+            for i,chunk in enumerate(chunks):
+                if not self.is_useful_chunk(chunk):
+                    continue
+                
+                # boost intro/abstract
+                boost = 3 if ("abstract" in title or "introduction" in  title) and i<3 else 1
 
-            if i < 5:
-                all_chunks.extend([chunk] * 3)
-            else:
-                all_chunks.append(chunk)
+                for _ in range(boost):
+                    entry = {"section":title, "text":chunk}
+                    self.section_chunks.append(entry)
+                    self.chunk_metadata[chunk_id] = entry
+                    chunk_id += 1
 
-        self.texts = all_chunks
+        #final text corpus
+        self.texts = [x["text"] for x in self.section_chunks]
 
         # FAST index map (fixes .index issue)
-        self.text_to_idx = {t: i for i, t in enumerate(self.texts)}
+        self.text_to_idx = defaultdict(list)
+        for i, t in enumerate(self.texts):
+            self.text_to_idx[t].append(i)
 
         # BM25
         tokenized_corpus = [t.lower().split() for t in self.texts]
@@ -99,28 +112,70 @@ class PaperMemory:
         self.vector_store = VectorStore(dim)
         self.vector_store.add(embeddings, self.texts)
 
+    def get_target_sections(self, query):
+        q = query.lower()
+        mapping = {
+            "definition": ["abstract", "introduction"],
+            "what": ["abstract", "introduction"],
+            "method": ["method", "approach"],
+            "how": ["method", "approach"],
+            "dataset": ["experiment"],
+            "benchmark": ["experiment"],
+            "evaluation": ["experiment"],
+            "limitation": ["discussion", "conclusion"],
+            "future": ["conclusion"],
+        }
+        targets = []
+        for key, vals in mapping.items():
+            if key in q:
+                targets.extend(vals)
+        return list(set(targets))
+
     def query(self, text, k=3):
 
-        query = f"{text} definition meaning low rank adaptation transformer"
+        query = text
+        if "what is" in text.lower():
+            query += " definition explanation"
+        target_sections = self.get_target_sections(query)
 
-        # Semantic
+        # ========Semantic===============
         query_embed = self.embedder.encode([query])
         vec_results = self.vector_store.search(query_embed, k=10)
 
-        # BM25
+        filtered_results= []
+
+        for chunk_id, dist in vec_results:
+            item = self.chunk_metadata[chunk_id]
+            chunk = item["text"]
+
+            if item is None:
+                continue
+            
+            # no filtering needed
+            if not target_sections:
+                filtered_results.append((chunk, dist))
+            
+            # section-aware filtering
+            if any(sec in item["section"] for sec in target_sections):
+                filtered_results.append((chunk, dist))
+
+        vec_results = filtered_results[:10]
+
+        # ============BM25===============
         tokenized_query = query.lower().split()
         bm25_scores = self.bm25.get_scores(tokenized_query)
 
         combined = []
 
-        for chunk, dist in vec_results:
-            idx = self.text_to_idx.get(chunk, -1)
-            bm25_score = bm25_scores[idx] if idx != -1 else 0
-
+        for chunk_id, dist in vec_results:
+            item = self.chunk_metadata[chunk_id]
+            chunk = item["text"]
+            idxs = self.text_to_idx.get(chunk, [])
+            bm25_score = max((bm25_scores[i] for i in idxs), default = 0)
             score = -dist + bm25_score
             combined.append((chunk, score))
-
-        combined = sorted(combined, key=lambda x: x[1], reverse=True)
+        
+        combined = sorted(combined, key=lambda x : x [1], reverse=True)
 
         # Sentence-level ranking
         top_chunks = combined[:3]

@@ -30,17 +30,18 @@ class PaperUnderstandingEngine:
 			return "Answer not found in paper."
 
 		prompt = f"""
-Write a clean 2-sentence explanation.
+Answer ONLY using the provided context.
 
-Rules:
-- Use only the given text
-- Do NOT include numbers or experiments
-- Focus only on definition
+If the answer is not clearly present, say:
+"Not found in paper"
 
-Text:
+Context:
 {context}
 
-Answer:
+Question:
+{question}
+
+Answer in 1-2 sentences, concise and factual.
 """
 		answer = self.llm.generate(prompt)
 		answer = answer.replace("We propose", "").strip()
