@@ -2,6 +2,9 @@ pymupdf
 arxiv
 sentence-transformers
 faiss-cpu
+rank-bm25
+transformers
+torch
 tqdm
 pydantic
 python-dotenv

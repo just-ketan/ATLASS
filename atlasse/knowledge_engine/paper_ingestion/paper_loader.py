@@ -4,7 +4,7 @@ from atlasse.knowledge_engine.paper_parser.paper_processor  import PaperProcesso
 
 class PaperLoader:
     def __init__(self):
-        self.processed_dir = "/data/processed_papers"
+        self.processed_dir = "data/processed_papers"
         self.downloader = ArxivDownloader()
         self.processor = PaperProcessor()
 

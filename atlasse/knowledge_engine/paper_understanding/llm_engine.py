@@ -33,10 +33,8 @@ class LLMEngine:
 		outputs = self.model.generate(
 			**inputs, 
 			max_new_tokens=200,
-			temperature = 0.2,
 			do_sample = False,
 			repetition_penalty = 1.5,
-			min_length=50,
 			no_repeat_ngram_size=3
 		)
 		
