@@ -1,21 +1,37 @@
 import json
+import os
 import re
 from collections import defaultdict
+
+from rank_bm25 import BM25Okapi
+
+from atlasse.knowledge_engine.retrieval.section_router import (
+    detect_intent,
+    expand_query,
+    get_section_categories,
+    section_matches_intent,
+    target_categories_for_query,
+)
 from .chunker import TextChunker
 from .embedder import Embedder
 from .vector_store import VectorStore
-from rank_bm25 import BM25Okapi
 
 
 class PaperMemory:
 
-    def __init__(self):
+    INDEX_DIR = "data/memory_indices"
+
+    def __init__(self, paper_id=None):
+        self.paper_id = paper_id
         self.chunker = TextChunker()
         self.embedder = Embedder()
         self.vector_store = None
         self.texts = []
         self.bm25 = None
-        self.text_to_idx = {}
+        self.chunk_metadata = {}
+        self.section_chunks = []
+        self.last_trace = {}
+        self._section_index = defaultdict(list)
 
     @staticmethod
     def split_sentences(text):
@@ -23,25 +39,19 @@ class PaperMemory:
 
     @staticmethod
     def is_useful_chunk(text):
+        if len(text.strip()) < 50:
+            return False
         num_digits = sum(c.isdigit() for c in text)
         if num_digits > len(text) * 0.15:
             return False
-
-        if len(text.strip()) < 50:
-            return False
-
         special = sum(not c.isalnum() and not c.isspace() for c in text)
         if special > len(text) * 0.2:
             return False
-
         return True
 
     @staticmethod
     def is_noise_sentence(s):
-        s = s.lower().strip()
-        if len(s) < 15:
-            return True
-        return False
+        return len(s.lower().strip()) < 15
 
     @staticmethod
     def is_bad_sentence(s):
@@ -49,181 +59,197 @@ class PaperMemory:
         if s.count("|") > 2:
             return True
         num_digits = sum(c.isdigit() for c in s)
-        if num_digits > len(s) * 0.4:
-            return True
-        return False
-        
+        return num_digits > len(s) * 0.4
+
     @staticmethod
     def is_definition_sentence(s):
         s_l = s.lower()
-        keyword_hits = any(k in s_l for k in [
-            "is a", "is an", "refers to", "is called",
-            "we propose", "we introduce", "named", "known as"
-        ])
-        # Pattern: "<Term> (…)? is ..."
-        pattern_hit = bool(re.search(r'\b[lL]o[rR]a\b.*\bis\b', s))
-        return keyword_hits or pattern_hit
+        keywords = ["is a", "is an", "refers to", "is called", "we propose", "we introduce", "named", "known as"]
+        return any(k in s_l for k in keywords)
 
-    def build(self, json_path):
+    def _should_skip_section(self, title):
+        return "reference" in title and "related" not in title
 
-        with open(json_path, "r") as f:
+    def _position_boost(self, section_title, chunk_index):
+        title = section_title.lower()
+        if "abstract" in title or "introduction" in title:
+            return 3 if chunk_index < 3 else 1
+        if "appendix" in title or "annex" in title:
+            return 2 if chunk_index < 2 else 1
+        return 2 if chunk_index < 2 else 1
+
+    def _index_path(self):
+        if not self.paper_id:
+            return None
+        return os.path.join(self.INDEX_DIR, self.paper_id)
+
+    def build(self, json_path, paper_id=None, force_rebuild=False):
+        if paper_id:
+            self.paper_id = paper_id
+        elif not self.paper_id:
+            self.paper_id = os.path.splitext(os.path.basename(json_path))[0]
+
+        index_path = self._index_path()
+        meta_path = os.path.join(index_path, "chunks.json") if index_path else None
+
+        if not force_rebuild and index_path and os.path.exists(meta_path):
+            self._load_from_disk(index_path)
+            return
+
+        with open(json_path) as f:
             data = json.load(f)
-
-        # text = data["full_text"]
-        # raw_chunks = self.chunker.chunk(text)
 
         self.chunk_metadata = {}
         self.section_chunks = []
+        self._section_index = defaultdict(list)
         chunk_id = 0
 
         for section in data["sections"]:
             title = section["title"].lower()
-            if "reference" in title or "appendix" in title:
+            if self._should_skip_section(title):
                 continue
+
+            is_appendix = "appendix" in title or "annex" in title
             chunks = self.chunker.chunk(section["text"])
+
             for i, chunk in enumerate(chunks):
                 if not self.is_useful_chunk(chunk):
                     continue
                 entry = {
                     "id": chunk_id,
+                    "paper_id": self.paper_id,
                     "section": title,
                     "text": chunk,
                     "level": section.get("level", 1),
-                    "position_boost": 3 if i < 3 else 1,
+                    "position_boost": self._position_boost(title, i),
+                    "is_appendix": is_appendix,
                 }
                 self.section_chunks.append(entry)
                 self.chunk_metadata[chunk_id] = entry
+                self._section_index[title].append(chunk_id)
                 chunk_id += 1
 
-        #final text corpus
         self.texts = [x["text"] for x in self.section_chunks]
-
-        # FAST index map (fixes .index issue)
-        self.text_to_idx = defaultdict(list)
-        for i, t in enumerate(self.texts):
-            self.text_to_idx[t].append(i)
-
-        # BM25
         tokenized_corpus = [t.lower().split() for t in self.texts]
         self.bm25 = BM25Okapi(tokenized_corpus)
 
-        # Embeddings
         embeddings = self.embedder.encode(self.texts)
         dim = embeddings.shape[1]
-
         self.vector_store = VectorStore(dim)
         ids = [entry["id"] for entry in self.section_chunks]
         self.vector_store.add(embeddings, ids)
 
-    def decompose_query(self, query):
-        q = query.lower()
-        sub_queries = [query]
-        
-        # Add expansions based on keywords
-        if "limit" in q or "drawback" in q or "weakness" in q:
-            sub_queries.extend([
-                "limitations of the method",
-                "drawbacks and disadvantages",
-                "weaknesses or negative results"
-            ])
-        if "method" in q or "how does" in q or "architecture" in q or "proposed" in q or "lora" in q:
-            sub_queries.extend([
-                "proposed method architecture",
-                "how does the model work",
-                "design and implementation details"
-            ])
-        if "dataset" in q or "benchmark" in q or "experiment" in q or "evaluation" in q:
-            sub_queries.extend([
-                "datasets and benchmarks used in experiments",
-                "evaluation setup and baseline models",
-                "experimental results and task performance"
-            ])
-        if "problem" in q or "address" in q or "motivation" in q:
-            sub_queries.extend([
-                "problem statement and motivation",
-                "challenges addressed by the paper",
-                "background and introduction to the problem"
-            ])
-        if "future" in q or "open problem" in q:
-            sub_queries.extend([
-                "future work and open questions",
-                "conclusion and future research directions"
-            ])
-        
-        return list(dict.fromkeys(sub_queries))
+        if index_path:
+            self._save_to_disk(index_path)
 
-    def get_section_categories(self, title):
-        title = title.lower()
-        categories = []
-        if "abstract" in title:
-            categories.append("abstract")
-        if "introduction" in title or "background" in title or "motivation" in title or "preliminar" in title:
-            categories.append("introduction")
-        if "problem" in title or "statement" in title:
-            categories.append("introduction")
-            categories.append("method")
-        if "method" in title or "approach" in title or "architecture" in title or "framework" in title or "design" in title:
-            categories.append("method")
-        if "experiment" in title or "evaluation" in title or "result" in title or "analysis" in title or "ablation" in title or "setup" in title:
-            categories.append("experiment")
-        if "related work" in title or "related-work" in title or "literature review" in title:
-            categories.append("related_work")
-        elif "related" in title and "work" in title:
-            categories.append("related_work")
-        if "conclusion" in title or "discussion" in title or "limit" in title or "future" in title:
-            categories.append("conclusion")
-        if "appendix" in title or "annex" in title or title.strip() == "f" or "empirical experiments" in title:
-            categories.append("appendix")
-            categories.append("experiment")
-        
-        if not categories:
-            categories.append("general")
-        return categories
+    def _save_to_disk(self, index_path):
+        os.makedirs(index_path, exist_ok=True)
+        self.vector_store.save(index_path)
+        with open(os.path.join(index_path, "chunks.json"), "w") as f:
+            json.dump(self.section_chunks, f)
 
-    def get_query_categories(self, query):
-        q = query.lower()
-        categories = []
-        
-        if any(w in q for w in ["definition", "what is", "define", "meaning of"]):
-            categories.extend(["abstract", "introduction"])
-        if any(w in q for w in ["problem", "address", "motivation", "challenge", "goal", "objective"]):
-            categories.extend(["abstract", "introduction", "method"])
-        if any(w in q for w in ["method", "how does", "architecture", "framework", "design", "propose", "proposed"]):
-            categories.extend(["method", "abstract"])
-        if any(w in q for w in ["dataset", "benchmark", "experiment", "evaluation", "result", "test", "metric", "accuracy"]):
-            categories.extend(["experiment", "appendix"])
-        if any(w in q for w in ["limit", "drawback", "weakness", "con", "disadvantage", "fail"]):
-            categories.extend(["conclusion", "introduction", "method"])
-        if any(w in q for w in ["future", "open problem", "next step", "extension", "conclusion"]):
-            categories.extend(["conclusion"])
-            
-        return list(set(categories))
+    def _load_from_disk(self, index_path):
+        self.vector_store = VectorStore.load(index_path)
+        self.embedder.dim = self.vector_store.dim
+        with open(os.path.join(index_path, "chunks.json")) as f:
+            self.section_chunks = json.load(f)
+        self.chunk_metadata = {c["id"]: c for c in self.section_chunks}
+        self._section_index = defaultdict(list)
+        for entry in self.section_chunks:
+            self._section_index[entry["section"]].append(entry["id"])
+        self.texts = [x["text"] for x in self.section_chunks]
+        self.bm25 = BM25Okapi([t.lower().split() for t in self.texts])
 
-    def query(self, text, k=3):
-        decomposed_queries = self.decompose_query(text)
-        target_categories = self.get_query_categories(text)
-        
+    def _filtered_chunk_ids(self, target_categories):
+        if not target_categories or target_categories == ["general"]:
+            return None
+        matched = []
+        for chunk_id, item in self.chunk_metadata.items():
+            if section_matches_intent(item["section"], target_categories):
+                matched.append(chunk_id)
+        return matched or None
+
+    def _score_candidates(self, candidates):
+        if not candidates:
+            return []
+
+        cosines = [c["cosine_sim"] for c in candidates]
+        bm25s = [c["bm25_score"] for c in candidates]
+        min_cosine, max_cosine = min(cosines), max(cosines)
+        min_bm25, max_bm25 = min(bm25s), max(bm25s)
+        cosine_range = max_cosine - min_cosine
+        bm25_range = max_bm25 - min_bm25
+
+        for c in candidates:
+            norm_cosine = (c["cosine_sim"] - min_cosine) / cosine_range if cosine_range > 0 else 1.0
+            norm_bm25 = (c["bm25_score"] - min_bm25) / bm25_range if bm25_range > 0 else 1.0
+            c["score"] = (
+                0.30 * norm_cosine
+                + 0.30 * norm_bm25
+                + 0.25 * c["section_boost"]
+                + 0.15 * c["position_boost"]
+            )
+
+        return sorted(candidates, key=lambda x: x["score"], reverse=True)
+
+    def _bm25_candidate_ids(self, scores, k=20, filter_ids=None):
+        filter_set = set(filter_ids) if filter_ids else None
+        ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)
+        ids = []
+        for chunk_id, score in ranked:
+            if score <= 0:
+                break
+            if filter_set is not None and chunk_id not in filter_set:
+                continue
+            ids.append(chunk_id)
+            if len(ids) >= k:
+                break
+        return ids
+
+    def _prioritize_by_intent(self, candidate_list, intents):
+        if "future_work" in intents or "limitations" in intents:
+            preferred = [
+                c for c in candidate_list
+                if any(k in c["section"] for k in ["conclusion", "discussion", "future", "limit"])
+            ]
+            if preferred:
+                return preferred + [c for c in candidate_list if c not in preferred]
+        if "dataset" in intents:
+            preferred = [
+                c for c in candidate_list
+                if any(k in c["section"] for k in ["experiment", "appendix", "evaluation", "setup", "empirical"])
+            ]
+            if preferred:
+                return preferred + [c for c in candidate_list if c not in preferred]
+        return candidate_list
+
+    def query(self, text, k=3, trace_id=None):
+        decomposed_queries = expand_query(text)
+        target_categories = target_categories_for_query(text)
+        intents = detect_intent(text)
+        filter_ids = self._filtered_chunk_ids(target_categories)
+
         candidates = {}
-        
+
         for sub_q in decomposed_queries:
-            sub_q_categories = self.get_query_categories(sub_q)
+            sub_q_categories = target_categories_for_query(sub_q)
             combined_categories = list(set(target_categories + sub_q_categories))
-            
+            sub_filter = self._filtered_chunk_ids(combined_categories) or filter_ids
+
             query_embed = self.embedder.encode([sub_q])
-            vec_results = self.vector_store.search(query_embed, k=15)
-            
-            sub_q_tokens = sub_q.lower().split()
-            bm25_scores = self.bm25.get_scores(sub_q_tokens)
-            
-            for chunk_id, dist in vec_results:
+            vec_results = self.vector_store.search(query_embed, k=20, filter_ids=sub_filter)
+            bm25_scores = self.bm25.get_scores(sub_q.lower().split())
+            result_ids = {chunk_id: dist for chunk_id, dist in vec_results}
+            for chunk_id in self._bm25_candidate_ids(bm25_scores, k=20, filter_ids=sub_filter):
+                result_ids.setdefault(chunk_id, 2.0)
+
+            for chunk_id, dist in result_ids.items():
                 item = self.chunk_metadata.get(chunk_id)
                 if item is None:
                     continue
-                
-                cosine_sim = 1.0 - (dist / 2.0)
-                bm25_score = bm25_scores[chunk_id]
 
-                sec_cats = self.get_section_categories(item["section"])
+                cosine_sim = 1.0 - (dist / 2.0)
+                sec_cats = get_section_categories(item["section"])
                 overlap = set(sec_cats).intersection(combined_categories)
                 section_boost = 1.0 if overlap else 0.0
                 position_boost = item.get("position_boost", 1) / 3.0
@@ -231,154 +257,164 @@ class PaperMemory:
                 if chunk_id not in candidates:
                     candidates[chunk_id] = {
                         "chunk_id": chunk_id,
+                        "paper_id": item.get("paper_id", self.paper_id),
                         "text": item["text"],
                         "section": item["section"],
                         "cosine_sim": cosine_sim,
-                        "bm25_score": bm25_score,
+                        "bm25_score": bm25_scores[chunk_id],
                         "section_boost": section_boost,
                         "position_boost": position_boost,
                     }
                 else:
-                    candidates[chunk_id]["cosine_sim"] = max(candidates[chunk_id]["cosine_sim"], cosine_sim)
-                    candidates[chunk_id]["bm25_score"] = max(candidates[chunk_id]["bm25_score"], bm25_score)
-                    candidates[chunk_id]["section_boost"] = max(candidates[chunk_id]["section_boost"], section_boost)
-                    candidates[chunk_id]["position_boost"] = max(candidates[chunk_id]["position_boost"], position_boost)
+                    c = candidates[chunk_id]
+                    c["cosine_sim"] = max(c["cosine_sim"], cosine_sim)
+                    c["bm25_score"] = max(c["bm25_score"], bm25_scores[chunk_id])
+                    c["section_boost"] = max(c["section_boost"], section_boost)
+                    c["position_boost"] = max(c["position_boost"], position_boost)
+
+        if not candidates:
+            for sub_q in decomposed_queries:
+                query_embed = self.embedder.encode([sub_q])
+                vec_results = self.vector_store.search(query_embed, k=20)
+                bm25_scores = self.bm25.get_scores(sub_q.lower().split())
+                result_ids = {chunk_id: dist for chunk_id, dist in vec_results}
+                for chunk_id in self._bm25_candidate_ids(bm25_scores, k=20):
+                    result_ids.setdefault(chunk_id, 2.0)
+                for chunk_id, dist in result_ids.items():
+                    item = self.chunk_metadata.get(chunk_id)
+                    if item is None or chunk_id in candidates:
+                        continue
+                    candidates[chunk_id] = {
+                        "chunk_id": chunk_id,
+                        "paper_id": item.get("paper_id", self.paper_id),
+                        "text": item["text"],
+                        "section": item["section"],
+                        "cosine_sim": 1.0 - (dist / 2.0),
+                        "bm25_score": bm25_scores[chunk_id],
+                        "section_boost": 0.0,
+                        "position_boost": item.get("position_boost", 1) / 3.0,
+                    }
 
         if not candidates:
             self.last_trace = {
+                "trace_id": trace_id,
+                "paper_id": self.paper_id,
                 "original_query": text,
                 "decomposed_queries": decomposed_queries,
+                "intents": intents,
+                "target_categories": target_categories,
                 "confidence_score": 0.0,
-                "message": "No candidates found"
+                "message": "No candidates found",
             }
             return []
 
-        candidate_list = list(candidates.values())
-        
-        cosines = [c["cosine_sim"] for c in candidate_list]
-        bm25s = [c["bm25_score"] for c in candidate_list]
-        
-        min_cosine, max_cosine = min(cosines), max(cosines)
-        min_bm25, max_bm25 = min(bm25s), max(bm25s)
-        
-        cosine_range = max_cosine - min_cosine
-        bm25_range = max_bm25 - min_bm25
-        
-        for c in candidate_list:
-            norm_cosine = (c["cosine_sim"] - min_cosine) / cosine_range if cosine_range > 0 else 1.0
-            norm_bm25 = (c["bm25_score"] - min_bm25) / bm25_range if bm25_range > 0 else 1.0
-            
-            c["score"] = (
-                0.35 * norm_cosine
-                + 0.35 * norm_bm25
-                + 0.15 * c["section_boost"]
-                + 0.15 * c["position_boost"]
-            )
+        candidate_list = self._score_candidates(list(candidates.values()))
+        candidate_list = self._prioritize_by_intent(candidate_list, intents)
+        top_chunks = candidate_list[:k]
 
-        candidate_list = sorted(candidate_list, key=lambda x: x["score"], reverse=True)
-
-        if target_categories == ["conclusion"] or (
-            "conclusion" in target_categories and len(target_categories) <= 2
-        ):
-            conclusion_chunks = [
-                c for c in candidate_list
-                if "conclusion" in c["section"] or "future" in c["section"]
-            ]
-            if conclusion_chunks:
-                candidate_list = conclusion_chunks + [
-                    c for c in candidate_list if c not in conclusion_chunks
-                ]
-
-        top_chunks = candidate_list[:3]
-        
         sentences = []
         for chunk_item in top_chunks:
-            chunk_sentences = self.split_sentences(chunk_item["text"])
-            for s in chunk_sentences:
+            for s in self.split_sentences(chunk_item["text"]):
                 sentences.append({
                     "text": s.strip(),
                     "chunk_id": chunk_item["chunk_id"],
-                    "section": chunk_item["section"]
+                    "paper_id": chunk_item.get("paper_id", self.paper_id),
+                    "section": chunk_item["section"],
                 })
-        
-        seen_sentences = set()
-        cleaned_sentences = []
-        for s in sentences:
-            s_text = s["text"]
-            if not s_text or len(s_text) <= 40:
-                continue
-            if s_text.lower() in seen_sentences:
-                continue
-            if self.is_noise_sentence(s_text) or self.is_bad_sentence(s_text):
-                continue
-            seen_sentences.add(s_text.lower())
-            cleaned_sentences.append(s)
 
-        if not cleaned_sentences:
+        seen = set()
+        cleaned = []
+        for s in sentences:
+            if not s["text"] or len(s["text"]) <= 40:
+                continue
+            key = s["text"].lower()
+            if key in seen or self.is_noise_sentence(s["text"]) or self.is_bad_sentence(s["text"]):
+                continue
+            seen.add(key)
+            cleaned.append(s)
+
+        if not cleaned:
             self.last_trace = {
+                "trace_id": trace_id,
+                "paper_id": self.paper_id,
                 "original_query": text,
-                "decomposed_queries": decomposed_queries,
                 "confidence_score": 0.0,
-                "message": "No sentences survived filtering"
+                "message": "No sentences survived filtering",
             }
             return []
 
-        tokenized_sentences = [s["text"].lower().split() for s in cleaned_sentences]
-        bm25_sent = BM25Okapi(tokenized_sentences)
-        original_query_tokens = text.lower().split()
-        sent_bm25_scores = bm25_sent.get_scores(original_query_tokens)
-        
-        min_s_bm25, max_s_bm25 = min(sent_bm25_scores), max(sent_bm25_scores)
-        s_bm25_range = max_s_bm25 - min_s_bm25
-        
-        ranked_sentences = []
-        for idx, s in enumerate(cleaned_sentences):
-            raw_bm25 = sent_bm25_scores[idx]
-            norm_bm25 = (raw_bm25 - min_s_bm25) / s_bm25_range if s_bm25_range > 0 else 1.0
-            
-            parent_chunk = candidates[s["chunk_id"]]
-            sentence_score = 0.5 * norm_bm25 + 0.5 * parent_chunk["score"]
-            
+        bm25_sent = BM25Okapi([s["text"].lower().split() for s in cleaned])
+        sent_scores = bm25_sent.get_scores(text.lower().split())
+        min_s, max_s = min(sent_scores), max(sent_scores)
+        s_range = max_s - min_s
+
+        ranked = []
+        for idx, s in enumerate(cleaned):
+            norm_bm25 = (sent_scores[idx] - min_s) / s_range if s_range > 0 else 1.0
+            parent = candidates[s["chunk_id"]]
+            sentence_score = 0.5 * norm_bm25 + 0.5 * parent["score"]
+
             is_def = self.is_definition_sentence(s["text"])
             if is_def and any(w in text.lower() for w in ["what is", "define", "meaning", "definition"]):
                 sentence_score += 0.3
-            if is_def and any(w in text.lower() for w in ["method", "proposed", "how does", "architecture", "lora"]):
+            if is_def and any(w in text.lower() for w in ["method", "proposed", "how does", "architecture"]):
                 sentence_score += 0.25
-                
-            ranked_sentences.append((s["text"], sentence_score, is_def, s["section"]))
+            if "limit" in text.lower() and any(w in s["text"].lower() for w in ["limit", "drawback", "weakness", "fail", "unclear"]):
+                sentence_score += 0.2
+            if "future" in text.lower() and any(w in s["text"].lower() for w in ["future", "open", "extend", "investigate"]):
+                sentence_score += 0.2
+            sentence_score = max(0.0, min(1.0, sentence_score))
 
-        ranked_sentences = sorted(ranked_sentences, key=lambda x: x[1], reverse=True)
+            ranked.append({
+                "text": s["text"],
+                "score": sentence_score,
+                "is_def": is_def,
+                "section": s["section"],
+                "chunk_id": s["chunk_id"],
+                "paper_id": s.get("paper_id", self.paper_id),
+            })
 
-        top_cosine = max_cosine
-        cosine_confidence = float(max(0.0, min(1.0, (top_cosine - 0.2) / 0.6)))
-        top_sentence_score = ranked_sentences[0][1] if ranked_sentences else 0.0
-        confidence_score = float(max(cosine_confidence, min(1.0, top_sentence_score)))
-        
+        ranked.sort(key=lambda x: x["score"], reverse=True)
+        max_cosine = max(c["cosine_sim"] for c in candidate_list)
+
+        query_tokens = [w for w in text.lower().split() if len(w) > 3 and w not in {
+            "what", "does", "this", "that", "with", "from", "have", "paper", "mentioned",
+        }]
+        retrieved_text = " ".join(r["text"].lower() for r in ranked[:3])
+        token_overlap = any(t in retrieved_text for t in query_tokens) if query_tokens else True
+
+        confidence = float(max(
+            max(0.0, min(1.0, (max_cosine - 0.2) / 0.6)),
+            ranked[0]["score"] if ranked else 0.0,
+        ))
+        confidence = max(0.0, min(1.0, confidence))
+        if query_tokens and not token_overlap and not detect_intent(text):
+            confidence = min(confidence, 0.05)
+
         self.last_trace = {
+            "trace_id": trace_id,
+            "paper_id": self.paper_id,
             "original_query": text,
             "decomposed_queries": decomposed_queries,
+            "intents": intents,
             "target_categories": target_categories,
+            "filter_applied": filter_ids is not None,
             "top_candidates": [
                 {
                     "chunk_id": c["chunk_id"],
+                    "paper_id": c.get("paper_id", self.paper_id),
                     "section": c["section"],
                     "cosine_sim": float(c["cosine_sim"]),
                     "bm25_score": float(c["bm25_score"]),
                     "section_boost": float(c["section_boost"]),
-                    "position_boost": float(c["position_boost"]),
                     "score": float(c["score"]),
-                    "text_preview": c["text"][:100] + "..."
-                } for c in candidate_list[:5]
+                    "text_preview": c["text"][:100] + "...",
+                }
+                for c in candidate_list[:5]
             ],
-            "ranked_sentences": [
-                {
-                    "text": s[0],
-                    "score": float(s[1]),
-                    "is_def": s[2],
-                    "section": s[3]
-                } for s in ranked_sentences[:5]
-            ],
-            "confidence_score": confidence_score
+            "ranked_sentences": ranked[:5],
+            "confidence_score": confidence,
+            "token_overlap": token_overlap,
         }
-        
-        return [(s[0], s[1]) for s in ranked_sentences[:2]]
+
+        return [(r["text"], r["score"], r) for r in ranked[:k]]

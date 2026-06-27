@@ -2,112 +2,76 @@
 
 **Autonomous Transformer Learning and Search Systems**
 
-A research cognition engine that ingests scientific papers, builds hierarchical semantic memory, and produces grounded answers with full provenance — not a PDF chatbot.
+A research cognition engine for ingesting papers, building semantic memory, hierarchical retrieval, multi-paper reasoning, and autonomous literature synthesis.
 
-## What ATLASS Does
+See [architecture.md](architecture.md) for full system design.
 
-- Ingests papers from arXiv or local PDFs
-- Parses PDFs into structured JSON with semantic sections
-- Builds chunk-level semantic memory with metadata indirection
-- Performs hierarchical retrieval: sections → chunks → sentences
-- Synthesizes grounded answers with hallucination guards
-- Extracts structured knowledge (problem, method, dataset, limitations, future work)
+## Capabilities
 
-## Architecture
-
-See [architecture.md](architecture.md) for the full system design, retrieval pipeline, and phase roadmap.
-
-```
-PDF → Parsing → Chunking → Embedding → FAISS (chunk IDs)
-  → Section Routing → Hybrid Retrieval → Sentence Ranking → LLM Synthesis
-```
-
-**Key design principle:** retrieval flows through `embedding → chunk_id → metadata lookup`, never `embedding → raw text`.
+- Paper ingestion from arXiv with local caching
+- Hierarchical retrieval: sections → chunks → sentences
+- Section-aware routing (future work, limitations, datasets)
+- Hybrid scoring: cosine + BM25 + section boost
+- Provenance citations on every answer
+- Persistent vector indices and retrieval traces
+- Multi-paper corpus search
+- Knowledge graph (entities, citations, relations)
+- Autonomous research agent (understand, compare, gaps, experiments)
 
 ## Quick Start
 
 ```bash
-# Create and activate virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install dependencies
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# Ingest a paper (PDF → JSON)
-python -m scripts.ingest_paper
+# Ingest
+python -m atlasse.cli ingest 2106.09685
 
-# Interactive Q&A
-python -m scripts.understand_paper
+# Ask with provenance
+python -m atlasse.cli ask 2106.09685 -q "what is LoRA"
 
-# Structured field extraction
-python -m scripts.extract_paper
+# Structured extraction
+python -m atlasse.cli extract 2106.09685
 
-# Retrieval diagnostics (no LLM, inspect traces)
-python -m scripts.debug_retrieval
-```
+# Retrieval evaluation
+python -m atlasse.cli eval 2106.09685
 
-Papers are cached in `data/processed_papers/`. Re-running skips download and re-parsing if the JSON exists.
+# Cross-paper search
+python -m atlasse.cli corpus -q "low rank adaptation"
 
-## Example
+# Research agent
+python -m atlasse.cli agent --mode gaps --paper-id 2106.09685
+python -m atlasse.cli agent --mode loop --paper-id 2106.09685
 
-```
-Ask ATLASS: what is LoRA?
-
-Answer:
-LoRA (Low-Rank Adaptation) freezes the pre-trained model weights and injects
-trainable rank decomposition matrices into each layer of the Transformer
-architecture, greatly reducing the number of trainable parameters for
-downstream tasks.
-```
-
-Unrelated queries are rejected:
-
-```
-Ask ATLASS: what powers does Pikachu have?
-
-Answer:
-This question does not seem related to the paper.
+# Unit tests
+python -m unittest discover tests
 ```
 
 ## Project Structure
 
 ```
-atlasse/knowledge_engine/
-├── paper_ingestion/       arXiv download, cache-first loading
-├── paper_parser/          PDF extraction, section parsing
-├── paper_embeddings/      chunking, embedding, FAISS, retrieval
-└── paper_understanding/   Q&A engine, structured extraction, LLM
+atlasse/
+├── cli.py                          Unified CLI
+└── knowledge_engine/
+    ├── paper_ingestion/            arXiv download, cache-first loading
+    ├── paper_parser/               PDF → structured JSON
+    ├── paper_embeddings/           chunking, FAISS, PaperMemory
+    ├── paper_understanding/        Q&A, structured extraction
+    ├── retrieval/                  section routing, intent detection
+    ├── orchestration/              evidence merge, provenance
+    ├── observability/              traces, eval harness
+    ├── corpus/                     multi-paper CorpusMemory
+    ├── graph/                      KnowledgeGraph
+    └── agent/                      ResearchAgent
 
-scripts/
-├── ingest_paper.py        PDF → JSON pipeline
-├── understand_paper.py    Interactive Q&A
-├── extract_paper.py       Structured field extraction
-├── query_paper.py         Alternative Q&A entry point
-└── debug_retrieval.py     Retrieval trace diagnostics
+scripts/                            Legacy script entry points
+tests/                              Unit and integration tests
+data/
+├── processed_papers/               Parsed JSON cache
+├── memory_indices/                 Persisted FAISS indices
+├── traces/                         Retrieval trace logs
+└── knowledge_graphs/             Paper knowledge graphs
 ```
-
-## Retrieval Pipeline
-
-1. **Query decomposition** — expand by intent (limitations, method, dataset, etc.)
-2. **Section routing** — map query to relevant section categories
-3. **Vector retrieval** — FAISS search returns chunk IDs
-4. **Metadata lookup** — resolve chunk ID → text, section, boost
-5. **Hybrid scoring** — cosine + BM25 + section boost + position boost
-6. **Sentence reranking** — extract and rank individual sentences
-7. **Confidence gate** — reject unrelated queries
-8. **Synthesis** — LLM generation with retrieval fallback
-
-## Tech Stack
-
-| Component | Library |
-|-----------|---------|
-| PDF parsing | PyMuPDF |
-| Paper download | arxiv |
-| Embeddings | sentence-transformers (all-mpnet-base-v2) |
-| Vector store | FAISS (IndexFlatL2) |
-| Lexical ranking | rank-bm25 |
-| Generation | HuggingFace Transformers (Flan-T5-large) |
 
 ## Phase Status
 
@@ -117,26 +81,16 @@ scripts/
 | 2 | Structured parsing | Done |
 | 3 | Hybrid retrieval | Done |
 | 4 | Hierarchical memory (ID indirection) | Done |
-| 5 | Full hierarchical retrieval | In progress |
-| 6 | Query decomposition | In progress |
-| 7 | Retrieval observability | In progress |
-| 8 | Multi-paper memory | Planned |
-| 9 | Knowledge graph | Planned |
-| 10 | Autonomous research agent | Planned |
+| 5 | Section-aware routing | Done |
+| 6 | Query orchestration + provenance | Done |
+| 7 | Observability (traces, eval, tests) | Done |
+| 8 | Multi-paper memory | Done |
+| 9 | Knowledge graph | Done |
+| 10 | Autonomous research agent | Done |
 
-## Design Principles
+## Tech Stack
 
-- **Retrieval > generation** — fix retrieval before tuning the LLM
-- **Metadata is critical** — every answer traceable to chunk ID and section
-- **Parser is good enough** — focus on orchestration, not parser perfection
-- **No toy demos** — optimize for inspectability and provenance
-
-## Known Limitations
-
-- Single-paper scope (multi-paper memory not yet implemented)
-- Flan-T5 synthesis quality varies; retrieval fallback compensates
-- Vector index is rebuilt in-memory on each session (no persistence yet)
-- Structured extraction quality depends on section routing maturity
+Python · PyMuPDF · arxiv · sentence-transformers · FAISS · rank-bm25 · HuggingFace Transformers (Flan-T5)
 
 ## License
 

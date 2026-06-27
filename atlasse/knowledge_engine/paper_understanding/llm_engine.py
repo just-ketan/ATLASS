@@ -1,28 +1,42 @@
-#LLM Wrapper for ATLASS to reason and summarise
+import os
+import sys
 
-# from transformers import pipeline
-
-# class LLMEngine:
-# 	def __init__(self):
-# 		# out model object to pass prompt
-# 		self.generator = pipeline("text2text-generation",model="google/flan-t5-base", max_new_tokens=256)
-	
-# 	def generate(self, prompt):
-# 		response = self.generator(prompt)
-# 		return response[0]["generated_text"]
-
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
 
 class LLMEngine:
-	def __init__(self):
-		self.tokenizer = AutoTokenizer.from_pretrained("google/flan-t5-large")
-		self.model = AutoModelForSeq2SeqLM.from_pretrained("google/flan-t5-large")
-
+	def __init__(self, model_name="google/flan-t5-large"):
+		self.model_name = model_name
+		self.tokenizer = None
+		self.model = None
+		self._load_failed = False
 		self.device = "cuda" if torch.cuda.is_available() else "cpu"
-		self.model.to(self.device)
+
+	def _load_model(self):
+		if self.model is not None or self._load_failed:
+			return self.model is not None
+		try:
+			from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+
+			allow_download = os.environ.get("ATLASS_ALLOW_MODEL_DOWNLOAD") == "1"
+			self.tokenizer = AutoTokenizer.from_pretrained(
+				self.model_name,
+				local_files_only=not allow_download,
+			)
+			self.model = AutoModelForSeq2SeqLM.from_pretrained(
+				self.model_name,
+				local_files_only=not allow_download,
+			)
+			self.model.to(self.device)
+		except Exception as exc:
+			self._load_failed = True
+			print(f"[ATLASS] LLM unavailable; using retrieval-only answers ({exc}).", file=sys.stderr)
+			return False
+		return True
 	
 	def generate(self, prompt):
+		if not self._load_model():
+			return ""
+
 		inputs = self.tokenizer(
 			prompt,
 			return_tensors = "pt",

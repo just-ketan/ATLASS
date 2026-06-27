@@ -1,0 +1,118 @@
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+[ATLASS using cached paper: data/processed_papers/2106.09685.json
+Loading weights:   0%|          | 0/199 [00:00<?, ?it/s]Loading weights: 100%|██████████| 199/199 [00:00<00:00, 4851.98it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:05<00:00,  5.05s/it]Batches: 100%|██████████| 1/1 [00:05<00:00,  5.06s/it]
+Loading weights:   0%|          | 0/558 [00:00<?, ?it/s]Loading weights:   4%|▍         | 21/558 [00:00<00:10, 53.43it/s]Loading weights:   6%|▋         | 35/558 [00:00<00:13, 38.41it/s]Loading weights:   8%|▊         | 43/558 [00:01<00:12, 41.21it/s]Loading weights:  11%|█         | 62/558 [00:01<00:08, 60.51it/s]Loading weights:  14%|█▍        | 78/558 [00:01<00:06, 71.00it/s]Loading weights:  16%|█▋        | 92/558 [00:01<00:06, 75.47it/s]Loading weights:  18%|█▊        | 102/558 [00:01<00:06, 70.15it/s]Loading weights:  22%|██▏       | 121/558 [00:01<00:05, 81.64it/s]Loading weights:  24%|██▍       | 135/558 [00:02<00:05, 80.50it/s]Loading weights:  26%|██▋       | 147/558 [00:02<00:05, 80.78it/s]Loading weights:  29%|██▉       | 161/558 [00:02<00:04, 81.26it/s]Loading weights:  30%|███       | 170/558 [00:02<00:05, 65.35it/s]Loading weights:  32%|███▏      | 177/558 [00:02<00:05, 64.60it/s]Loading weights:  34%|███▎      | 187/558 [00:02<00:05, 62.84it/s]Loading weights:  38%|███▊      | 213/558 [00:03<00:03, 91.65it/s]Loading weights:  40%|███▉      | 223/558 [00:03<00:04, 74.88it/s]Loading weights:  41%|████▏     | 231/558 [00:03<00:04, 72.44it/s]Loading weights:  45%|████▍     | 251/558 [00:03<00:03, 86.00it/s]Loading weights:  52%|█████▏    | 291/558 [00:03<00:02, 133.26it/s]Loading weights:  62%|██████▏   | 347/558 [00:03<00:01, 187.46it/s]Loading weights:  66%|██████▌   | 366/558 [00:04<00:02, 84.95it/s] Loading weights:  68%|██████▊   | 380/558 [00:04<00:02, 74.23it/s]Loading weights:  70%|███████   | 391/558 [00:05<00:02, 71.86it/s]Loading weights:  72%|███████▏  | 402/558 [00:05<00:02, 68.42it/s]Loading weights:  76%|███████▌  | 423/558 [00:05<00:01, 78.35it/s]Loading weights:  78%|███████▊  | 433/558 [00:05<00:01, 69.23it/s]Loading weights:  79%|███████▉  | 441/558 [00:05<00:01, 62.30it/s]Loading weights:  81%|████████  | 451/558 [00:05<00:01, 65.99it/s]Loading weights:  82%|████████▏ | 459/558 [00:06<00:01, 53.34it/s]Loading weights:  85%|████████▌ | 475/558 [00:06<00:01, 63.48it/s]Loading weights:  86%|████████▋ | 482/558 [00:06<00:01, 61.04it/s]Loading weights:  89%|████████▊ | 494/558 [00:06<00:01, 63.52it/s]Loading weights:  90%|████████▉ | 501/558 [00:06<00:00, 60.16it/s]Loading weights:  99%|█████████▊| 550/558 [00:07<00:00, 102.11it/s]Loading weights: 100%|██████████| 558/558 [00:07<00:00, 77.56it/s] 
+[transformers] The tied weights mapping and config for this model specifies to tie shared.weight to lm_head.weight, but both are present in the checkpoints with different values, so we will NOT tie them. You should update the config with `tie_word_embeddings=False` to silence this warning.
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  3.27it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  3.26it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  3.24it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  3.24it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 13.06it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 22.34it/s]
+
+--- FIELD: PROBLEM ---
+Question: what problem does this paper address in machine learning or transformers
+Answer: Consider adapting this pre-trained model to downstream conditional text generation tasks, such as summarization, machine reading comprehension (MRC), and natural language to SQL (NL2SQL). Below is a brief description of the language modeling problem and, in particular, the maximization of conditional probabilities given a task-speciﬁc prompt.
+Confidence Score: 0.3756031095981598
+Message: None
+Top Candidates:
+  Chunk ID: 1, Section: 2 problem statement, Cosine: 0.353124737739563, BM25: 3.5479942571680896, Score: 0.8603393971920014
+  Text preview: While our proposal is agnostic to training objective, we focus on language modeling as our motivat- ...
+  Chunk ID: 2, Section: 4 our method, Cosine: 0.41329771280288696, BM25: 1.6509645231961838, Score: 0.6452806905710748
+  Text preview: We describe the simple design of LoRA and its practical beneﬁts. The principles outlined here apply ...
+  Chunk ID: 4, Section: 6 related works, Cosine: 0.42536187171936035, BM25: 1.8368771254916894, Score: 0.5510824356053469
+  Text preview: Transformer Language Models. Transformer (Vaswani et al., 2017) is a sequence-to-sequence architectu...
+Ranked Sentences:
+  Text: Consider adapting this pre-trained model to downstream conditional text generation tasks, such as su..., Score: 0.9301696985960006, Def: False
+  Text: Below is a brief description of the language modeling problem and, in particular, the maximization o..., Score: 0.8029339562910751, Def: True
+  Text: This necessitates an empirical art of composing and formatting the prompt to maximize a model’s perf..., Score: 0.7321193771159097, Def: True
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 10.84it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  4.68it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  4.67it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  8.62it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  8.59it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 16.38it/s]
+
+--- FIELD: METHOD ---
+Question: what method is proposed in this paper lora low rank adaptation
+Answer: We believe that LoRA makes it more tractable to answer this than full ﬁne- 12 tuning. An important paradigm of natural language processing consists of large-scale pre- training on general domain data and adaptation to particular tasks or domains.
+Confidence Score: 0.367278128862381
+Message: None
+Top Candidates:
+  Chunk ID: 0, Section: abstract, Cosine: 0.3661932945251465, BM25: 3.3662522407947963, Score: 0.9313619673252106
+  Text preview: An important paradigm of natural language processing consists of large-scale pre- training on genera...
+  Chunk ID: 2, Section: 4 our method, Cosine: 0.3318699598312378, BM25: 2.977788763347962, Score: 0.8271526039975217
+  Text preview: We describe the simple design of LoRA and its practical beneﬁts. The principles outlined here apply ...
+  Chunk ID: 6, Section: 8 conclusion and future work, Cosine: 0.3606112003326416, BM25: 2.7647951983882835, Score: 0.6802742706724857
+  Text preview: Fine-tuning enormous language models is prohibitively expensive in terms of the hardware required an...
+Ranked Sentences:
+  Text: We believe that LoRA makes it more tractable to answer this than full ﬁne- 12 tuning...., Score: 0.8401371353362428, Def: False
+  Text: An important paradigm of natural language processing consists of large-scale pre- training on genera..., Score: 0.7569626249023593, Def: False
+  Text: We propose Low-Rank Adaptation, or LoRA, which freezes the pre- trained model weights and injects tr..., Score: 0.7567748676246389, Def: True
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 11.67it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  7.82it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  7.80it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  6.29it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  6.27it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  7.74it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  7.70it/s]
+
+--- FIELD: DATASET ---
+Question: what datasets or benchmarks are used in this paper experiments
+Answer: Appendix C
+Confidence Score: 0.1390450894832611
+Message: None
+Top Candidates:
+  Chunk ID: 3, Section: 5 empirical experiments, Cosine: 0.24022901058197021, BM25: 3.295770149669494, Score: 0.8483678936958313
+  Text preview: We evaluate the downstream task performance of LoRA on RoBERTa (Liu et al., 2019), De- BERTa (He et ...
+  Chunk ID: 7, Section: f
+additional empirical experiments, Cosine: 0.28342705965042114, BM25: 1.8071398598162274, Score: 0.803261273493536
+  Text preview: F.1 ADDITIONAL EXPERIMENTS ON GPT-2 We also repeat our experiment on DART (Nan et al., 2020) and Web...
+  Chunk ID: 4, Section: 6 related works, Cosine: 0.2070152759552002, BM25: 2.655662412708991, Score: 0.4971851107697528
+  Text preview: Transformer Language Models. Transformer (Vaswani et al., 2017) is a sequence-to-sequence architectu...
+Ranked Sentences:
+  Text: See Appendix C for more details on the datasets we use...., Score: 0.814222143632237, Def: False
+  Text: However, this line of works can only scale up by using more special tokens in the prompt, which take..., Score: 0.7485925553848765, Def: False
+  Text: Similar to our result on E2E NLG Challenge, reported in Section 5, LoRA performs better than or at l..., Score: 0.695836920273053, Def: False
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  8.18it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  8.17it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 15.38it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 12.34it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 10.96it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  8.89it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  8.84it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  9.77it/s]Batches: 100%|██████████| 1/1 [00:00<00:00,  9.71it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 14.90it/s]
+
+--- FIELD: LIMITATIONS ---
+Question: what are limitations or drawbacks of this method mentioned in paper
+Answer: Answer not found in paper.
+Confidence Score: 0.06007380411028862
+Message: None
+Top Candidates:
+  Chunk ID: 2, Section: 4 our method, Cosine: 0.2360442876815796, BM25: 2.977788763347962, Score: 0.9999999940395355
+  Text preview: We describe the simple design of LoRA and its practical beneﬁts. The principles outlined here apply ...
+  Chunk ID: 6, Section: 8 conclusion and future work, Cosine: 0.17266243696212769, BM25: 2.7647951983882835, Score: 0.7274281495169554
+  Text preview: Fine-tuning enormous language models is prohibitively expensive in terms of the hardware required an...
+  Chunk ID: 7, Section: f
+additional empirical experiments, Cosine: 0.17381799221038818, BM25: 2.5701551926761814, Score: 0.6924663353298894
+  Text preview: F.1 ADDITIONAL EXPERIMENTS ON GPT-2 We also repeat our experiment on DART (Nan et al., 2020) and Web...
+Ranked Sentences:
+  Text: 2) The mechanism behind ﬁne-tuning or LoRA is far from clear – how are features learned during pre-t..., Score: 0.8637140747584777, Def: False
+  Text: Similar to our result on E2E NLG Challenge, reported in Section 5, LoRA performs better than or at l..., Score: 0.8447848754324419, Def: False
+  Text: We believe that LoRA makes it more tractable to answer this than full ﬁne- 12 tuning...., Score: 0.8413491696304645, Def: False
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 10.65it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 23.19it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 10.07it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 10.78it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 15.67it/s]
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|██████████| 1/1 [00:00<00:00, 12.74it/s]
+
+--- FIELD: FUTURE_WORK ---
+Question: what future work or open problems are mentioned in conclusion
+Answer: This question does not seem related to the paper.
+Confidence Score: 0.0
+Message: None
+Top Candidates:
+  Chunk ID: 1, Section: 2 problem statement, Cosine: 0.1520320177078247, BM25: 3.5479942571680896, Score: 0.9077231526374817
+  Text preview: While our proposal is agnostic to training objective, we focus on language modeling as our motivat- ...
+  Chunk ID: 2, Section: 4 our method, Cosine: 0.15452688932418823, BM25: 1.6509645231961838, Score: 0.5884543673002771
+  Text preview: We describe the simple design of LoRA and its practical beneﬁts. The principles outlined here apply ...
+  Chunk ID: 3, Section: 5 empirical experiments, Cosine: 0.1710173487663269, BM25: 1.8476220306144118, Score: 0.5529594788219877
+  Text preview: We evaluate the downstream task performance of LoRA on RoBERTa (Liu et al., 2019), De- BERTa (He et ...
+Ranked Sentences:
+  Text: Suppose we are given a pre-trained autoregressive language model PΦ(y|x) parametrized by Φ...., Score: 0.9538615763187408, Def: False
+  Text: Each downstream task is represented by a training dataset of context-target pairs: Z = {(xi, yi)}i=1..., Score: 0.8382298846699185, Def: False
+  Text: Below is a brief description of the language modeling problem and, in particular, the maximization o..., Score: 0.7618030231253007, Def: True

@@ -1,16 +1,29 @@
-# script to derive reasoning of paper context from LLM
-
-from atlasse.knowledge_engine.paper_understanding.paper_understanding_engine import PaperUnderstandingEngine
+import argparse
 
 from atlasse.knowledge_engine.paper_ingestion.paper_loader import PaperLoader
+from atlasse.knowledge_engine.paper_understanding.paper_understanding_engine import PaperUnderstandingEngine
 
-def run():
-	loader = PaperLoader()
-	json_path = loader.load("2106.09685")
-	engine = PaperUnderstandingEngine(json_path)
-	while True:
-		q = input("Ask ATLASS (understanding): ")
-		answer = engine.ask(q)
-		print("\nAnswer:\n", answer, "\n")
+
+def run(paper_id="2106.09685"):
+    loader = PaperLoader()
+    json_path = loader.load(paper_id)
+    engine = PaperUnderstandingEngine(json_path, paper_id=paper_id)
+
+    while True:
+        try:
+            q = input("Ask ATLASS: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            break
+        if not q:
+            continue
+        result = engine.ask_with_provenance(q)
+        print(f"\nAnswer:\n{result['answer']}\n")
+        if result.get("citations"):
+            print(f"Citations:\n{result['citations']}\n")
+
+
 if __name__ == "__main__":
-	run()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("paper_id", nargs="?", default="2106.09685")
+    args = parser.parse_args()
+    run(args.paper_id)

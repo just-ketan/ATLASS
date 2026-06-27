@@ -8,3 +8,5 @@ torch
 tqdm
 pydantic
 python-dotenv
+fastapi
+uvicorn

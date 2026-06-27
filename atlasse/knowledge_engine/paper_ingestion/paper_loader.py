@@ -1,6 +1,9 @@
 import os
+import sys
+
 from atlasse.knowledge_engine.paper_ingestion.arxiv_downloader import ArxivDownloader
-from atlasse.knowledge_engine.paper_parser.paper_processor  import PaperProcessor
+from atlasse.knowledge_engine.paper_parser.paper_processor import PaperProcessor
+
 
 class PaperLoader:
     def __init__(self):
@@ -10,12 +13,10 @@ class PaperLoader:
 
     def load(self, arxiv_id):
         json_path = os.path.join(self.processed_dir, f"{arxiv_id}.json")
-        # if already exists
         if os.path.exists(json_path):
-            print("[ATLASS using cached paper:", json_path)
+            print(f"[ATLASS] Using cached paper: {json_path}", file=sys.stderr)
             return json_path
-        # fresh download
-        print("[ATLASS] Paper not found locally, Downloading...")
+        print("[ATLASS] Paper not found locally. Downloading...", file=sys.stderr)
         pdf_path = self.downloader.download(arxiv_id)
         json_path = self.processor.process(pdf_path)
         return json_path
