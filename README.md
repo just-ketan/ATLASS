@@ -2,7 +2,7 @@
 
 **Autonomous Transformer Learning and Search Systems**
 
-A research cognition engine for ingesting papers, building semantic memory, hierarchical retrieval, multi-paper reasoning, and autonomous literature synthesis.
+A research cognition engine that turns a paper into grounded understanding, a reviewable system specification, an implementation blueprint, and a constrained runnable baseline.
 
 See [architecture.md](architecture.md) for full system design.
 
@@ -17,6 +17,7 @@ See [architecture.md](architecture.md) for full system design.
 - Multi-paper corpus search
 - Knowledge graph (entities, citations, relations)
 - Autonomous research agent (understand, compare, gaps, experiments)
+- Paper-to-baseline workflow: evidence → system specification → blueprint → PyTorch smoke baseline
 
 ## Quick Start
 
@@ -47,6 +48,26 @@ python -m atlasse.cli agent --mode loop --paper-id 2106.09685
 python -m unittest discover tests
 ```
 
+## Student MVP Demo
+
+The resume-focused workflow is intentionally narrow: import a paper, inspect evidence, approve the extracted proposed-system specification and implementation blueprint, then generate and run a synthetic-data PyTorch smoke baseline. It never presents the smoke result as a paper reproduction.
+
+```bash
+# Terminal 1: API
+uvicorn atlasse.platform.api:app --reload
+
+# Terminal 2: React demo UI
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`. The local demo workspace offers five stages: Import, Understand, System spec, Blueprint, and Run & report.
+
+Use **Load synthetic demo** for an immediate, clearly labeled end-to-end fixture. It exists to demonstrate the workflow and is not presented as a published paper or reproduction result. See [tracker.md](tracker.md) for delivery status and remaining portfolio work.
+
+The initial code generator supports the `pytorch_supervised_model` family. Unsupported papers still receive a system specification and implementation blueprint, but code generation is intentionally refused rather than guessed.
+
 ## Project Structure
 
 ```
@@ -70,7 +91,11 @@ data/
 ├── processed_papers/               Parsed JSON cache
 ├── memory_indices/                 Persisted FAISS indices
 ├── traces/                         Retrieval trace logs
-└── knowledge_graphs/             Paper knowledge graphs
+├── knowledge_graphs/               Paper knowledge graphs
+├── system_specs/                   Reviewable proposed-system artifacts
+├── implementation_blueprints/      Approval-gated build plans
+├── generated_projects/             Generated PyTorch baselines
+└── reproduction_reports/            Smoke-run reports
 ```
 
 ## Phase Status

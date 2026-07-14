@@ -15,6 +15,9 @@ from .models import (
     PaperStatus,
     Project,
     User,
+    Dataset,
+    Repo,
+    TimelineEvent,
     utc_now,
 )
 
@@ -36,6 +39,9 @@ class InMemoryWorkspaceStore:
         self.conversations: dict[str, Conversation] = {}
         self.memories: dict[str, MemoryItem] = {}
         self.citations: dict[str, Citation] = {}
+        self.datasets: dict[str, Dataset] = {}
+        self.repos: dict[str, Repo] = {}
+        self.timeline_events: dict[str, TimelineEvent] = {}
         self.user_resources = defaultdict(lambda: defaultdict(list))
 
     @staticmethod
@@ -151,11 +157,16 @@ class InMemoryWorkspaceStore:
         self.user_resources[user_id]["projects"].append(project.id)
         return project
 
+    def list_projects(self, user_id: str) -> list[Project]:
+        self.get_user(user_id)
+        return [self.projects[project_id] for project_id in self.user_resources[user_id]["projects"]]
+
     def add_project_paper(self, user_id: str, project_id: str, paper_id: str) -> Project:
         project = self.get_project(user_id, project_id)
         self.get_paper(user_id, paper_id)
         if paper_id not in project.paper_ids:
             project.paper_ids.append(paper_id)
+        self.add_timeline_event(user_id, project_id, "paper_added", f"Paper {paper_id} attached to project.")
         return project
 
     def get_project(self, user_id: str, project_id: str) -> Project:
@@ -163,6 +174,69 @@ class InMemoryWorkspaceStore:
         if not project or project.user_id != user_id:
             raise NotFoundError(f"Project {project_id} not found")
         return project
+
+    def add_dataset(self, user_id: str, name: str, url: str, description: str = "") -> Dataset:
+        self.get_user(user_id)
+        dataset = Dataset(id=self._id("dataset"), user_id=user_id, name=name, url=url, description=description)
+        self.datasets[dataset.id] = dataset
+        self.user_resources[user_id]["datasets"].append(dataset.id)
+        return dataset
+
+    def get_dataset(self, user_id: str, dataset_id: str) -> Dataset:
+        dataset = self.datasets.get(dataset_id)
+        if not dataset or dataset.user_id != user_id:
+            raise NotFoundError(f"Dataset {dataset_id} not found")
+        return dataset
+
+    def add_project_dataset(self, user_id: str, project_id: str, dataset_id: str) -> Project:
+        project = self.get_project(user_id, project_id)
+        self.get_dataset(user_id, dataset_id)
+        if dataset_id not in project.dataset_ids:
+            project.dataset_ids.append(dataset_id)
+        self.add_timeline_event(user_id, project_id, "dataset_added", f"Dataset {dataset_id} added to project.")
+        return project
+
+    def add_repo(self, user_id: str, name: str, url: str, description: str = "") -> Repo:
+        self.get_user(user_id)
+        repo = Repo(id=self._id("repo"), user_id=user_id, name=name, url=url, description=description)
+        self.repos[repo.id] = repo
+        self.user_resources[user_id]["repos"].append(repo.id)
+        return repo
+
+    def get_repo(self, user_id: str, repo_id: str) -> Repo:
+        repo = self.repos.get(repo_id)
+        if not repo or repo.user_id != user_id:
+            raise NotFoundError(f"Repo {repo_id} not found")
+        return repo
+
+    def add_project_repo(self, user_id: str, project_id: str, repo_id: str) -> Project:
+        project = self.get_project(user_id, project_id)
+        self.get_repo(user_id, repo_id)
+        if repo_id not in project.repo_ids:
+            project.repo_ids.append(repo_id)
+        self.add_timeline_event(user_id, project_id, "repo_added", f"Repo {repo_id} added to project.")
+        return project
+
+    def add_timeline_event(self, user_id: str, project_id: str, event_type: str, description: str) -> TimelineEvent:
+        self.get_project(user_id, project_id)
+        event = TimelineEvent(
+            id=self._id("event"),
+            user_id=user_id,
+            project_id=project_id,
+            event_type=event_type,
+            description=description,
+        )
+        self.timeline_events[event.id] = event
+        self.user_resources[user_id]["timeline_events"].append(event.id)
+        return event
+
+    def list_project_timeline(self, user_id: str, project_id: str) -> list[TimelineEvent]:
+        self.get_project(user_id, project_id)
+        events = [
+            self.timeline_events[eid] for eid in self.user_resources[user_id]["timeline_events"]
+            if self.timeline_events[eid].project_id == project_id
+        ]
+        return sorted(events, key=lambda e: e.created_at)
 
     def add_note(
         self,
@@ -237,6 +311,10 @@ class InMemoryWorkspaceStore:
         self.user_resources[user_id]["memories"].append(memory.id)
         return memory
 
+    def list_memories(self, user_id: str) -> list[MemoryItem]:
+        self.get_user(user_id)
+        return [self.memories[mid] for mid in self.user_resources[user_id]["memories"]]
+
     def add_citation(self, user_id: str, paper_id: str, text: str, style: str = "apa", **metadata) -> Citation:
         self.get_paper(user_id, paper_id)
         citation = Citation(
@@ -262,6 +340,8 @@ class InMemoryWorkspaceStore:
             conversations=len(resources["conversations"]),
             memories=len(resources["memories"]),
             citations=len(resources["citations"]),
+            datasets=len(resources["datasets"]),
+            repos=len(resources["repos"]),
             ready_papers=sum(1 for paper in papers if paper.status == PaperStatus.READY),
             processing_papers=sum(
                 1

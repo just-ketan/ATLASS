@@ -64,6 +64,35 @@ class Project:
     paper_ids: list[str] = field(default_factory=list)
     note_ids: list[str] = field(default_factory=list)
     conversation_ids: list[str] = field(default_factory=list)
+    dataset_ids: list[str] = field(default_factory=list)
+    repo_ids: list[str] = field(default_factory=list)
+    created_at: datetime = field(default_factory=utc_now)
+
+@dataclass
+class Dataset:
+    id: str
+    user_id: str
+    name: str
+    url: str
+    description: str = ""
+    created_at: datetime = field(default_factory=utc_now)
+
+@dataclass
+class Repo:
+    id: str
+    user_id: str
+    name: str
+    url: str
+    description: str = ""
+    created_at: datetime = field(default_factory=utc_now)
+
+@dataclass
+class TimelineEvent:
+    id: str
+    user_id: str
+    project_id: str
+    event_type: str
+    description: str
     created_at: datetime = field(default_factory=utc_now)
 
 
@@ -127,5 +156,7 @@ class Dashboard:
     conversations: int
     memories: int
     citations: int
+    datasets: int
+    repos: int
     ready_papers: int
     processing_papers: int

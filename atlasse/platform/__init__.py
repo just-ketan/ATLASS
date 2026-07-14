@@ -10,6 +10,9 @@ from .models import (
     PaperRecord,
     Project,
     User,
+    Dataset,
+    Repo,
+    TimelineEvent,
 )
 from .service import ResearchWorkspaceService
 from .store import InMemoryWorkspaceStore
@@ -26,4 +29,7 @@ __all__ = [
     "Project",
     "ResearchWorkspaceService",
     "User",
+    "Dataset",
+    "Repo",
+    "TimelineEvent",
 ]

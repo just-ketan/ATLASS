@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from importlib.util import find_spec
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -59,6 +60,10 @@ class TestSectionRouter(unittest.TestCase):
 
 class TestVectorStorePersistence(unittest.TestCase):
 
+    @unittest.skipIf(
+        find_spec("numpy") is None or find_spec("faiss") is None,
+        "Vector store persistence requires numpy and faiss",
+    )
     def test_save_and_load(self):
         import shutil
         import tempfile
