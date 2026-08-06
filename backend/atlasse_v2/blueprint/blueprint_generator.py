@@ -23,6 +23,14 @@ class BlueprintGenerator:
         "loss": "src/training/loss.py",
         "optimizer": "src/training/optimizer.py",
         "dataset": "src/data/dataset.py",
+        "convolution": "src/model/cnn.py",
+        "resnet": "src/model/cnn.py",
+        "cnn": "src/model/cnn.py",
+        "diffusion": "src/model/diffusion.py",
+        "denoising": "src/model/diffusion.py",
+        "unet": "src/model/unet.py",
+        "vit": "src/model/vit.py",
+        "vision transformer": "src/model/vit.py",
     }
 
     RUNTIME_MODULES = {

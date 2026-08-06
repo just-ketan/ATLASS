@@ -19,6 +19,8 @@ class BaselineGenerator:
         ModelFamily.TRANSFORMER,
         ModelFamily.MLP,
         ModelFamily.CNN,
+        ModelFamily.VIT,
+        ModelFamily.DIFFUSION,
     }
 
     def __init__(self, graph: SemanticPaperGraph, spec: dict | None = None):
@@ -115,6 +117,13 @@ class BaselineGenerator:
             ],
             ModelFamily.CNN: [
                 {"path": "src/model/cnn.py", "template": "transformer"},
+            ],
+            ModelFamily.VIT: [
+                {"path": "src/model/vit.py", "template": "transformer"},
+                {"path": "src/model/attention.py", "template": "attention"},
+            ],
+            ModelFamily.DIFFUSION: [
+                {"path": "src/model/diffusion.py", "template": "transformer"},
             ],
         }
         return family_files.get(family, []) + common

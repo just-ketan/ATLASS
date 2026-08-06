@@ -152,6 +152,16 @@ class ReproductionEngine:
 
     def run_smoke(self, baseline: dict, spec: dict, data_dir: str) -> dict:
         report = self.classify(baseline, spec)
+        if not baseline.get("supported") or not baseline.get("project_dir"):
+            report["smoke_validation"] = {
+                "passed": False,
+                "skipped": True,
+                "reason": "Baseline family not supported — smoke compile skipped.",
+            }
+            report["observed_metrics"] = None
+            report["run_status"] = "smoke_skipped"
+            return report
+
         paper_id = baseline.get("paper_id")
         project_rel = baseline.get("project_dir", "project")
         project_dir = Path(data_dir) / "baselines" / paper_id / project_rel

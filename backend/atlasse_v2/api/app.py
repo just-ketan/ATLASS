@@ -5,6 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from atlasse_v2.agents.orchestrator import AgentOrchestrator
+from atlasse_v2.api.views import (
+    architecture_dag,
+    assumption_tracker,
+    evidence_viewer,
+    entity_browser,
+)
+from atlasse_v2.infra import FileCache, JobQueue, log_event, setup_logging
 from atlasse_v2.memory.research_memory import ResearchMemory
 from atlasse_v2.parsing.document_store import DocumentStore
 from atlasse_v2.qa.qa_pipeline import QAPipeline
@@ -28,9 +35,34 @@ def create_app(data_dir: str = "data/v2"):
         allow_headers=["*"],
     )
     orchestrator = AgentOrchestrator(data_dir=data_dir)
+    cache = FileCache(cache_dir=f"{data_dir}/cache")
+    jobs = JobQueue(job_dir=f"{data_dir}/jobs")
+    logger = setup_logging()
 
     class AskRequest(BaseModel):
         question: str
+
+    class IngestJobRequest(BaseModel):
+        paper_id: str | None = None
+
+    @app.post("/v2/papers/ingest-async")
+    async def ingest_paper_async(file: UploadFile = File(...), paper_id: str | None = None):
+        import tempfile
+        suffix = Path(file.filename or "paper.pdf").suffix or ".pdf"
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = tmp.name
+        pid = paper_id or Path(file.filename or "paper").stem
+
+        def _run():
+            log_event(logger, "ingest_async_start", paper_id=pid)
+            summary, trace = orchestrator.process_with_trace(tmp_path, paper_id=pid)
+            Path(tmp_path).unlink(missing_ok=True)
+            return {"summary": summary, "agent_trace": trace}
+
+        job_id = jobs.submit(_run)
+        return {"job_id": job_id, "paper_id": pid, "status": "pending"}
 
     @app.get("/v2/health")
     def health():
@@ -45,7 +77,10 @@ def create_app(data_dir: str = "data/v2"):
             tmp.write(content)
             tmp_path = tmp.name
         try:
-            result = orchestrator.process_paper(tmp_path)
+            log_event(logger, "ingest_start", paper_id=file.filename)
+            result, trace = orchestrator.process_with_trace(tmp_path)
+            result["agent_trace"] = trace
+            cache.set(f"status:{result.get('paper_id')}", result)
             return result
         finally:
             Path(tmp_path).unlink(missing_ok=True)
@@ -88,6 +123,49 @@ def create_app(data_dir: str = "data/v2"):
         if spec is None:
             raise HTTPException(status_code=404, detail="Specification not found — ingest first")
         return spec
+
+    @app.get("/v2/papers/{paper_id}/agent-trace")
+    def agent_trace(paper_id: str):
+        trace = orchestrator.get_trace(paper_id)
+        if trace is None:
+            raise HTTPException(status_code=404, detail="Agent trace not found — ingest first")
+        return trace
+
+    @app.get("/v2/papers/{paper_id}/evidence")
+    def evidence_list(paper_id: str, limit: int = 50):
+        memory = ResearchMemory.load(paper_id, base_dir=f"{data_dir}/memory_indices")
+        if not memory.chunks:
+            raise HTTPException(status_code=404, detail="Paper memory not found — ingest first")
+        return evidence_viewer(paper_id, data_dir, limit=limit)
+
+    @app.get("/v2/papers/{paper_id}/entities")
+    def entities(paper_id: str):
+        graph = orchestrator.pipeline.get_graph(paper_id)
+        if not graph.entities:
+            raise HTTPException(status_code=404, detail="Graph not found — ingest first")
+        return entity_browser(paper_id, graph)
+
+    @app.get("/v2/papers/{paper_id}/architecture-dag")
+    def arch_dag(paper_id: str):
+        blueprint = orchestrator.pipeline.get_blueprint(paper_id)
+        if blueprint is None:
+            raise HTTPException(status_code=404, detail="Blueprint not found — ingest first")
+        return architecture_dag(blueprint)
+
+    @app.get("/v2/papers/{paper_id}/assumptions")
+    def assumptions(paper_id: str):
+        spec = orchestrator.pipeline.get_spec(paper_id)
+        if spec is None:
+            raise HTTPException(status_code=404, detail="Specification not found — ingest first")
+        baseline = orchestrator.pipeline.get_baseline(paper_id)
+        return assumption_tracker(spec, baseline)
+
+    @app.get("/v2/jobs/{job_id}")
+    def job_status(job_id: str):
+        status = jobs.get(job_id)
+        if status is None:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return status
 
     @app.get("/v2/papers/{paper_id}/graph")
     def get_graph(paper_id: str):

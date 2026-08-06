@@ -36,6 +36,14 @@ def main(argv: list[str] | None = None) -> int:
     repro.add_argument("paper_id")
     repro.add_argument("--data-dir", default="data/v2")
 
+    accept = sub.add_parser("accept", help="Run golden paper acceptance suite")
+    accept.add_argument("--data-dir", default="data/v2")
+    accept.add_argument("--work-dir", default="data/v2/golden_pdfs")
+
+    trace = sub.add_parser("agent-trace", help="Show agent orchestration trace for a paper")
+    trace.add_argument("paper_id")
+    trace.add_argument("--data-dir", default="data/v2")
+
     args = parser.parse_args(argv)
 
     if args.command == "ingest":
@@ -90,6 +98,23 @@ def main(argv: list[str] | None = None) -> int:
         result = pipeline.get_reproduction_report(args.paper_id)
         if result is None:
             print("Reproduction report not found — run ingest first.", file=sys.stderr)
+            return 1
+        print(json.dumps(result, indent=2))
+        return 0
+
+    if args.command == "accept":
+        from pathlib import Path
+        from atlasse_v2.evaluation.golden_acceptance import run_all_acceptance
+        result = run_all_acceptance(args.data_dir, Path(args.work_dir))
+        print(json.dumps(result, indent=2))
+        return 0 if result["all_passed"] else 1
+
+    if args.command == "agent-trace":
+        from atlasse_v2.agents.orchestrator import AgentOrchestrator
+        orch = AgentOrchestrator(data_dir=args.data_dir)
+        result = orch.get_trace(args.paper_id)
+        if result is None:
+            print("Agent trace not found — run ingest first.", file=sys.stderr)
             return 1
         print(json.dumps(result, indent=2))
         return 0
