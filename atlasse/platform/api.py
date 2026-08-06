@@ -323,6 +323,22 @@ def create_app(service: ResearchWorkspaceService | None = None):
         except NotFoundError as exc:
             handle_not_found(exc)
 
+    @app.post("/users/{user_id}/papers/{paper_id}/research-extension")
+    def run_research_extension(user_id: str, paper_id: str):
+        try:
+            return _jsonable(workspace.run_research_extension(user_id, paper_id))
+        except NotFoundError as exc:
+            handle_not_found(exc)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/users/{user_id}/papers/{paper_id}/research-extension")
+    def get_research_extension(user_id: str, paper_id: str):
+        try:
+            return _jsonable(workspace.get_research_report(user_id, paper_id))
+        except NotFoundError as exc:
+            handle_not_found(exc)
+
     @app.post("/users/{user_id}/papers/compare")
     def compare_papers(user_id: str, payload: ComparePapersRequest):
         try:

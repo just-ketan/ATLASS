@@ -9,6 +9,7 @@ import {
   type Blueprint,
   type BaselineProject,
   type RunReport,
+  type ResearchReport,
   type AskAnswer,
   type EventRecord,
   type KnowledgeItem,
@@ -107,6 +108,12 @@ function PaperWorkspace() {
     queryKey: ["report", userId, paperId],
     queryFn: () => api.baseline.report(userId!, paperId),
     enabled: !!userId && stage === "report",
+    retry: false,
+  });
+  const research = useQuery({
+    queryKey: ["research", userId, paperId],
+    queryFn: () => api.research.get(userId!, paperId),
+    enabled: !!userId && stage === "report" && !!report.data,
     retry: false,
   });
   const knowledge = useQuery({
@@ -221,6 +228,7 @@ function PaperWorkspace() {
               paperId={paperId}
               baseline={baseline.data}
               loading={baseline.isLoading}
+              onSmokeComplete={() => setStage("report")}
             />
           )}
           {stage === "report" && (
@@ -229,6 +237,10 @@ function PaperWorkspace() {
               paperId={paperId}
               report={report.data}
               loading={report.isLoading}
+              research={research.data}
+              researchLoading={research.isLoading}
+              researchError={research.isError}
+              defaultTab="research"
             />
           )}
         </div>
@@ -782,11 +794,13 @@ function BaselineStage({
   paperId,
   baseline,
   loading,
+  onSmokeComplete,
 }: {
   userId?: string;
   paperId: string;
   baseline?: BaselineProject;
   loading: boolean;
+  onSmokeComplete?: () => void;
 }) {
   const qc = useQueryClient();
   const generate = useMutation({
@@ -795,7 +809,11 @@ function BaselineStage({
   });
   const run = useMutation({
     mutationFn: () => api.baseline.run(userId!, paperId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["report", userId, paperId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["report", userId, paperId] });
+      qc.invalidateQueries({ queryKey: ["research", userId, paperId] });
+      onSmokeComplete?.();
+    },
   });
 
   if (loading) return <SkeletonBlock rows={6} />;
@@ -916,18 +934,48 @@ function BaselineStage({
 }
 
 // ---------------- Report ----------------
+function labelChipClass(label: string) {
+  switch (label) {
+    case "paper_supported":
+      return "border-[color:var(--evidence)]/40 bg-[color:var(--evidence-soft)] text-[color:var(--evidence)]";
+    case "evidence_backed_inference":
+      return "border-hairline-strong bg-surface-2 text-foreground/90";
+    case "heuristic_suggestion":
+      return "border-[color:var(--warning)]/35 bg-[color:var(--warning-soft)]/50 text-[color:var(--warning)]";
+    case "speculative_research_idea":
+      return "border-[color:var(--danger)]/25 bg-[color:var(--danger-soft)]/40 text-[color:var(--danger)]";
+    default:
+      return "border-hairline bg-surface-2 text-muted-foreground";
+  }
+}
+
 function ReportStage({
   userId,
   paperId,
   report,
   loading,
+  research,
+  researchLoading,
+  researchError,
+  defaultTab,
 }: {
   userId?: string;
   paperId: string;
   report?: RunReport;
   loading: boolean;
+  research?: ResearchReport;
+  researchLoading?: boolean;
+  researchError?: boolean;
+  defaultTab?: "metrics" | "stdout" | "stderr" | "research";
 }) {
-  const [tab, setTab] = useState<"metrics" | "stdout" | "stderr">("metrics");
+  const qc = useQueryClient();
+  const [tab, setTab] = useState<"metrics" | "stdout" | "stderr" | "research">(
+    defaultTab ?? "metrics",
+  );
+  const refreshResearch = useMutation({
+    mutationFn: () => api.research.run(userId!, paperId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["research", userId, paperId] }),
+  });
 
   if (loading) return <SkeletonBlock rows={6} />;
   if (!report) {
@@ -975,10 +1023,10 @@ function ReportStage({
         </div>
       )}
 
-      {/* Metrics table */}
+      {/* Metrics / logs / research */}
       <div className="mt-6 panel overflow-hidden">
         <div className="flex items-center gap-1 border-b border-hairline bg-surface-2/60 px-2 py-1.5">
-          {(["metrics", "stdout", "stderr"] as const).map((t) => (
+          {(["metrics", "stdout", "stderr", "research"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -989,7 +1037,7 @@ function ReportStage({
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {t}
+              {t === "research" ? "Research mode" : t}
             </button>
           ))}
         </div>
@@ -1036,6 +1084,135 @@ function ReportStage({
           <pre className="max-h-[380px] overflow-auto p-4 text-mono text-[11px] text-[color:var(--danger)]/90">
             {report.stderr ?? "No stderr captured."}
           </pre>
+        )}
+        {tab === "research" && (
+          <div className="p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="label-eyebrow">Phase 3 · Research extension</div>
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  Generated after smoke run — failure analysis, ranked experiments, and labeled suggestions.
+                </p>
+              </div>
+              <button
+                onClick={() => refreshResearch.mutate()}
+                disabled={refreshResearch.isPending || !userId}
+                className="inline-flex h-9 items-center gap-2 rounded-md border border-hairline-strong bg-surface px-3 text-[12px] font-medium hover:bg-surface-2 disabled:opacity-60"
+              >
+                <BookOpen className="size-3.5" />
+                {refreshResearch.isPending ? "Generating…" : "Refresh research"}
+              </button>
+            </div>
+
+            {researchLoading && <div className="mt-4"><SkeletonBlock rows={4} /></div>}
+            {researchError && !researchLoading && (
+              <p className="mt-4 text-[13px] text-muted-foreground">
+                Research report not ready yet. Run smoke experiment again or click Refresh research.
+              </p>
+            )}
+            {research && (
+              <div className="mt-6 space-y-6">
+                {research.reproduction_outcome?.message && (
+                  <p className="text-[13px] text-foreground/85">{research.reproduction_outcome.message}</p>
+                )}
+
+                {research.failure_analysis?.root_causes && research.failure_analysis.root_causes.length > 0 && (
+                  <div>
+                    <div className="label-eyebrow mb-2">Failure analysis</div>
+                    <p className="mb-3 text-[13px] text-muted-foreground">
+                      {research.failure_analysis.summary}
+                    </p>
+                    <ul className="space-y-2">
+                      {research.failure_analysis.root_causes.slice(0, 6).map((c, i) => (
+                        <li key={i} className="flex flex-wrap items-start gap-2 text-[13px]">
+                          <span
+                            className={clsx(
+                              "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide",
+                              labelChipClass(c.label),
+                            )}
+                          >
+                            {c.label_display}
+                          </span>
+                          <span className="text-foreground/90">{c.text}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {research.experiment_plan?.experiments && (
+                  <div>
+                    <div className="label-eyebrow mb-3">Ranked experiments</div>
+                    <ul className="space-y-3">
+                      {research.experiment_plan.experiments.slice(0, 7).map((exp, i) => (
+                        <li key={i} className="panel p-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-mono text-[11px] text-muted-foreground">
+                              #{i + 1}
+                            </span>
+                            <span
+                              className={clsx(
+                                "rounded-full border px-2 py-0.5 text-[10px]",
+                                labelChipClass(exp.item.label),
+                              )}
+                            >
+                              {exp.item.label_display}
+                            </span>
+                            {exp.rank_score != null && (
+                              <span className="text-mono text-[11px] text-muted-foreground">
+                                score {exp.rank_score.toFixed(2)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-2 font-medium text-foreground">{exp.title}</div>
+                          {exp.description && (
+                            <p className="mt-1 text-[13px] text-muted-foreground">{exp.description}</p>
+                          )}
+                          {exp.expected_impact && (
+                            <p className="mt-1 text-[12px] text-foreground/75">
+                              Expected impact: {exp.expected_impact}
+                            </p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {research.improvements?.suggestions && research.improvements.suggestions.length > 0 && (
+                  <div>
+                    <div className="label-eyebrow mb-3">Improvement suggestions</div>
+                    <ul className="space-y-2">
+                      {research.improvements.suggestions.slice(0, 5).map((s, i) => (
+                        <li key={i} className="flex flex-wrap gap-2 text-[13px]">
+                          <span
+                            className={clsx(
+                              "rounded-full border px-2 py-0.5 text-[10px]",
+                              labelChipClass(s.item.label),
+                            )}
+                          >
+                            {s.item.label_display}
+                          </span>
+                          <span className="text-foreground/90">{s.item.text}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {research.notebook?.markdown && (
+                  <details className="panel p-4">
+                    <summary className="cursor-pointer text-[13px] font-medium text-foreground">
+                      Full research notebook (markdown)
+                    </summary>
+                    <pre className="mt-3 max-h-[320px] overflow-auto text-mono text-[11px] text-foreground/80">
+                      {research.notebook.markdown}
+                    </pre>
+                  </details>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
 

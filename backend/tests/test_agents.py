@@ -16,7 +16,7 @@ def test_orchestrator_full_trace(tmp_path):
     assert summary["paper_id"] == "2106.09685"
     assert summary["agent_trace_saved"]
     assert trace["success"]
-    assert len(trace["steps"]) == 8
+    assert len(trace["steps"]) == 9
     agent_names = {s["agent_name"] for s in trace["steps"]}
     assert agent_names == {
         "document_agent",
@@ -27,6 +27,7 @@ def test_orchestrator_full_trace(tmp_path):
         "blueprint_agent",
         "baseline_agent",
         "evaluation_agent",
+        "research_extension_agent",
     }
 
     loaded = orch.get_trace("2106.09685")

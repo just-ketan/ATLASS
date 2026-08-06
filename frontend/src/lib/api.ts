@@ -48,7 +48,18 @@ export interface SystemSpec { fields: Record<string, SpecField>; approved?: bool
 export interface BlueprintModule { path: string; responsibility: string; assumption?: boolean; citations?: EvidenceCitation[] }
 export interface Blueprint { modules: BlueprintModule[]; training_plan?: string; data_contracts?: unknown; dependencies?: string[]; config_schema?: unknown; assumptions?: string[]; approved?: boolean }
 export interface BaselineProject { file_tree?: string[]; run_command?: string; supported_families?: string[]; warnings?: string[]; manifest?: Record<string, unknown>; source_mapping?: Record<string, string[]> }
-export interface RunReport { status: "queued" | "running" | "succeeded" | "failed" | "not_run"; metrics?: Record<string, number>; stdout?: string; stderr?: string; assumptions?: string[]; comparability?: "comparable" | "not_comparable" | "unknown"; verdict?: string }
+export interface RunReport { status: "queued" | "running" | "succeeded" | "failed" | "not_run"; metrics?: Record<string, number>; paper_metrics?: Record<string, number>; stdout?: string; stderr?: string; assumptions?: string[]; comparability?: "comparable" | "not_comparable" | "unknown"; verdict?: string }
+export interface LabeledItem { text: string; label: string; label_display: string; confidence?: number; evidence?: string[] }
+export interface ResearchExperiment { title: string; description?: string; reason?: string; expected_impact?: string; rank_score?: number; item: LabeledItem }
+export interface ResearchReport {
+  paper_id: string;
+  mode: string;
+  reproduction_outcome?: { successful?: boolean; message?: string };
+  failure_analysis?: { summary?: string; root_causes?: LabeledItem[] };
+  experiment_plan?: { experiments?: ResearchExperiment[]; count?: number };
+  improvements?: { suggestions?: Array<{ category: string; item: LabeledItem; motivation?: string; expected_impact?: string }> };
+  notebook?: { markdown?: string; label_legend?: Record<string, string> };
+}
 export interface CompareResult { aspect: string; papers: { paper_id: ID; title?: string; summary: string; citations?: EvidenceCitation[] }[]; synthesis?: string }
 
 const citations = (evidence: any[] = []): EvidenceCitation[] => evidence.map((item) => ({ section: item.section, chunk: item.chunk_id == null ? undefined : `chunk ${item.chunk_id}`, score: item.score }));
@@ -85,6 +96,9 @@ const report = (item: any): RunReport => ({
   ...item,
   status: item.status === "completed" ? "succeeded" : item.status === "failed" ? "failed" : "not_run",
   metrics: item.observed_metrics ?? {},
+  paper_metrics: item.comparison?.paper_accuracy != null
+    ? { accuracy: item.comparison.paper_accuracy }
+    : undefined,
   stdout: item.commands?.train?.stdout,
   stderr: item.commands?.train?.stderr || item.commands?.evaluate?.stderr,
   assumptions: (item.assumptions ?? []).map((assumption: any) => typeof assumption === "string" ? assumption : assumption.description),
@@ -141,6 +155,10 @@ export const api = {
     get: (userId: ID, paperId: ID): Promise<BaselineProject> => request<any>(`/users/${userId}/papers/${paperId}/baseline-project`).then(baseline),
     run: (userId: ID, paperId: ID): Promise<RunReport> => request<any>(`/users/${userId}/papers/${paperId}/baseline-project/run`, { method: "POST" }).then(report),
     report: (userId: ID, paperId: ID): Promise<RunReport> => request<any>(`/users/${userId}/papers/${paperId}/reproduction-report`).then(report),
+  },
+  research: {
+    run: (userId: ID, paperId: ID): Promise<ResearchReport> => request<any>(`/users/${userId}/papers/${paperId}/research-extension`, { method: "POST" }),
+    get: (userId: ID, paperId: ID): Promise<ResearchReport> => request<any>(`/users/${userId}/papers/${paperId}/research-extension`),
   },
   projects: {
     list: (userId: ID) => request<any[]>(`/users/${userId}/projects`),

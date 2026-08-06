@@ -105,6 +105,9 @@ class PaperPipeline:
             "has_blueprint": blueprint_path.exists(),
             "has_baseline": baseline_path.exists(),
             "has_reproduction_report": repro_path.exists(),
+            "has_research_report": (
+                Path(f"{self.data_dir}/research_reports") / paper_id / "research_report.json"
+            ).exists(),
         }
 
     def get_spec(self, paper_id: str) -> dict | None:
@@ -176,4 +179,46 @@ class PaperPipeline:
         return ReproductionEngine.load(
             paper_id,
             base_dir=f"{self.data_dir}/reproduction_reports",
+        )
+
+    def run_research_mode(
+        self,
+        paper_id: str,
+        observed_metrics: dict | None = None,
+        training_logs: str | None = None,
+        configuration: dict | None = None,
+    ) -> dict:
+        """Transition to research mode after reproduction (success or failure)."""
+        from atlasse_v2.research.engine import ResearchExtensionEngine
+        from atlasse_v2.research.types import ResearchContext
+
+        spec = self.get_spec(paper_id)
+        blueprint = self.get_blueprint(paper_id)
+        baseline = self.get_baseline(paper_id)
+        repro = self.get_reproduction_report(paper_id)
+        if not spec or not blueprint or not baseline or not repro:
+            raise ValueError(f"Missing artifacts for research mode — ingest paper {paper_id} first.")
+
+        graph = self.get_graph(paper_id)
+        ctx = ResearchContext.from_pipeline(
+            paper_id=paper_id,
+            spec=spec,
+            blueprint=blueprint,
+            baseline=baseline,
+            reproduction_report=repro,
+            graph=graph,
+            observed_metrics=observed_metrics,
+            training_logs=training_logs,
+            configuration=configuration,
+        )
+        engine = ResearchExtensionEngine()
+        report = engine.run(ctx)
+        engine.save(report, base_dir=f"{self.data_dir}/research_reports")
+        return report
+
+    def get_research_report(self, paper_id: str) -> dict | None:
+        from atlasse_v2.research.engine import ResearchExtensionEngine
+        return ResearchExtensionEngine.load(
+            paper_id,
+            base_dir=f"{self.data_dir}/research_reports",
         )

@@ -266,7 +266,51 @@ class ResearchWorkspaceService:
             latest_reproduction_report=report,
             latest_reproduction_report_path=report_path,
         )
+        try:
+            self.run_research_extension(user_id, paper_id)
+        except Exception:
+            pass  # research mode is optional if v2 deps unavailable
         return report
+
+    def run_research_extension(self, user_id: str, paper_id: str) -> dict:
+        spec = self.get_system_spec(user_id, paper_id)
+        blueprint = self.get_implementation_blueprint(user_id, paper_id)
+        manifest = self.get_baseline_project(user_id, paper_id)
+        try:
+            repro = self.get_latest_reproduction_report(user_id, paper_id)
+        except NotFoundError:
+            repro = None
+
+        from .research_extension import PlatformResearchExtension
+
+        extension = PlatformResearchExtension()
+        report = extension.run(paper_id, spec, blueprint, manifest, repro)
+        self.store.update_paper_metadata(
+            user_id,
+            paper_id,
+            research_report=report,
+            research_report_path=report.get("storage_path"),
+        )
+        return report
+
+    def get_research_report(self, user_id: str, paper_id: str) -> dict:
+        paper = self.store.get_paper(user_id, paper_id)
+        cached = paper.metadata.get("research_report")
+        if cached:
+            return cached
+        path = paper.metadata.get("research_report_path")
+        if path and Path(path).exists():
+            with open(path) as file:
+                report = json.load(file)
+            self.store.update_paper_metadata(user_id, paper_id, research_report=report)
+            return report
+        from .research_extension import PlatformResearchExtension
+
+        loaded = PlatformResearchExtension().load(paper_id)
+        if loaded:
+            self.store.update_paper_metadata(user_id, paper_id, research_report=loaded)
+            return loaded
+        raise NotFoundError(f"No research report for paper {paper_id}. Run a smoke experiment first.")
 
     def get_latest_reproduction_report(self, user_id: str, paper_id: str) -> dict:
         paper = self.store.get_paper(user_id, paper_id)

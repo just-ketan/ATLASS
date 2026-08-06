@@ -273,6 +273,37 @@ def create_app(data_dir: str = "data/v2"):
             raise HTTPException(status_code=404, detail="Specification not found — ingest first")
         return result
 
+    @app.post("/v2/papers/{paper_id}/research")
+    def run_research_mode(paper_id: str):
+        try:
+            return orchestrator.pipeline.run_research_mode(paper_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/v2/papers/{paper_id}/research")
+    def get_research_report(paper_id: str):
+        report = orchestrator.pipeline.get_research_report(paper_id)
+        if report is None:
+            raise HTTPException(status_code=404, detail="Research report not found — run research mode first")
+        return report
+
+    @app.get("/v2/papers/{paper_id}/research/notebook")
+    def get_research_notebook(paper_id: str):
+        report = orchestrator.pipeline.get_research_report(paper_id)
+        if report is None:
+            raise HTTPException(status_code=404, detail="Research notebook not found")
+        return report.get("notebook", {})
+
+    @app.post("/v2/papers/{paper_id}/research/export")
+    def export_research(paper_id: str, formats: str = "markdown,csv,configs,jupyter"):
+        from atlasse_v2.research.engine import ResearchExtensionEngine
+        report = orchestrator.pipeline.get_research_report(paper_id)
+        if report is None:
+            raise HTTPException(status_code=404, detail="Research report not found — run research mode first")
+        fmt_list = [f.strip() for f in formats.split(",") if f.strip()]
+        engine = ResearchExtensionEngine()
+        return engine.export(report, fmt_list, base_dir=f"{data_dir}/research_reports")
+
     return app
 
 

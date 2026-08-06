@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppProjectsRouteImport } from './routes/app.projects'
@@ -18,6 +19,11 @@ import { Route as AppCompareRouteImport } from './routes/app.compare'
 import { Route as AppActivityRouteImport } from './routes/app.activity'
 import { Route as AppPaperPaperIdRouteImport } from './routes/app.paper.$paperId'
 
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -61,6 +67,7 @@ const AppPaperPaperIdRoute = AppPaperPaperIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
   '/app/activity': typeof AppActivityRoute
   '/app/compare': typeof AppCompareRoute
   '/app/knowledge': typeof AppKnowledgeRoute
@@ -71,6 +78,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
   '/app/activity': typeof AppActivityRoute
   '/app/compare': typeof AppCompareRoute
   '/app/knowledge': typeof AppKnowledgeRoute
@@ -82,6 +90,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
   '/app/activity': typeof AppActivityRoute
   '/app/compare': typeof AppCompareRoute
   '/app/knowledge': typeof AppKnowledgeRoute
@@ -94,6 +103,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/login'
     | '/app/activity'
     | '/app/compare'
     | '/app/knowledge'
@@ -104,6 +114,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/login'
     | '/app/activity'
     | '/app/compare'
     | '/app/knowledge'
@@ -114,6 +125,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/login'
     | '/app/activity'
     | '/app/compare'
     | '/app/knowledge'
@@ -125,6 +137,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LoginRoute: typeof LoginRoute
   AppActivityRoute: typeof AppActivityRoute
   AppCompareRoute: typeof AppCompareRoute
   AppKnowledgeRoute: typeof AppKnowledgeRoute
@@ -136,6 +149,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -197,6 +217,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LoginRoute: LoginRoute,
   AppActivityRoute: AppActivityRoute,
   AppCompareRoute: AppCompareRoute,
   AppKnowledgeRoute: AppKnowledgeRoute,

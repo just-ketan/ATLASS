@@ -173,3 +173,44 @@ class EvaluationAgent:
             },
             duration_ms=(time.monotonic() - start) * 1000,
         )
+
+
+class ResearchExtensionAgent:
+    name = "research_extension_agent"
+
+    def run(
+        self,
+        paper_id: str,
+        baseline: dict,
+        spec: dict,
+        blueprint: dict,
+        data_dir: str,
+        graph: SemanticPaperGraph,
+    ) -> AgentResult:
+        start = time.monotonic()
+        from atlasse_v2.research.engine import ResearchExtensionEngine
+        from atlasse_v2.research.types import ResearchContext
+
+        repro = ReproductionEngine.load(paper_id, base_dir=f"{data_dir}/reproduction_reports") or {}
+        ctx = ResearchContext.from_pipeline(
+            paper_id=paper_id,
+            spec=spec,
+            blueprint=blueprint,
+            baseline=baseline,
+            reproduction_report=repro,
+            graph=graph,
+        )
+        engine = ResearchExtensionEngine()
+        report = engine.run(ctx)
+        engine.save(report, base_dir=f"{data_dir}/research_reports")
+        return AgentResult(
+            agent_name=self.name,
+            success=True,
+            output_type="ResearchReport",
+            payload={
+                "paper_id": paper_id,
+                "experiment_count": report.get("experiment_plan", {}).get("count", 0),
+                "improvement_count": report.get("improvements", {}).get("count", 0),
+            },
+            duration_ms=(time.monotonic() - start) * 1000,
+        )
