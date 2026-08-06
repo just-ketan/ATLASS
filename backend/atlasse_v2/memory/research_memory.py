@@ -13,6 +13,12 @@ from pathlib import Path
 
 from atlasse_v2.core.models import ParsedDocument, ResearchChunk
 from atlasse_v2.core.types import SectionType
+from atlasse_v2.memory.chunk_patterns import (
+    extract_algorithms,
+    extract_captions,
+    extract_equations,
+    extract_tables,
+)
 
 
 class ResearchMemory:
@@ -28,18 +34,71 @@ class ResearchMemory:
                 text = document.paragraphs.get(pid, "")
                 if not text.strip():
                     continue
-                chunk_id = f"chunk_{uuid.uuid4().hex[:8]}"
-                self.chunks[chunk_id] = ResearchChunk(
-                    chunk_id=chunk_id,
+                self._add_chunk(
                     text=text,
                     page=section.page_start,
                     section=section.section_type,
                     paragraph_id=pid,
                     chunk_type="paragraph",
-                    keywords=self._extract_keywords(text),
-                    citations=self._extract_citations(text),
                 )
+            self._add_structured_chunks(section)
         return self
+
+    def _add_chunk(
+        self,
+        text: str,
+        page: int | None,
+        section: SectionType | str,
+        paragraph_id: str | None,
+        chunk_type: str,
+    ) -> str:
+        chunk_id = f"chunk_{uuid.uuid4().hex[:8]}"
+        self.chunks[chunk_id] = ResearchChunk(
+            chunk_id=chunk_id,
+            text=text,
+            page=page,
+            section=section,
+            paragraph_id=paragraph_id,
+            chunk_type=chunk_type,
+            keywords=self._extract_keywords(text),
+            citations=self._extract_citations(text),
+        )
+        return chunk_id
+
+    def _add_structured_chunks(self, section) -> None:
+        text = section.text
+        for fig_num, caption in extract_captions(text):
+            self._add_chunk(
+                text=f"Figure {fig_num}: {caption}",
+                page=section.page_start,
+                section=section.section_type,
+                paragraph_id=None,
+                chunk_type="caption",
+            )
+        for tab_num, body in extract_tables(text):
+            self._add_chunk(
+                text=f"Table {tab_num}: {body}",
+                page=section.page_start,
+                section=section.section_type,
+                paragraph_id=None,
+                chunk_type="table",
+            )
+        for eq in extract_equations(text):
+            self._add_chunk(
+                text=eq,
+                page=section.page_start,
+                section=section.section_type,
+                paragraph_id=None,
+                chunk_type="equation",
+            )
+        for alg in extract_algorithms(text):
+            self._add_chunk(
+                text=alg,
+                page=section.page_start,
+                section=section.section_type,
+                paragraph_id=None,
+                chunk_type="algorithm",
+            )
 
     def get_by_section(self, section: SectionType | str) -> list[ResearchChunk]:
         target = section.value if isinstance(section, SectionType) else section
@@ -54,6 +113,22 @@ class ResearchMemory:
             c for c in self.chunks.values()
             if (c.section.value if isinstance(c.section, SectionType) else c.section) in targets
         ]
+
+    def tag_from_graph(self, graph) -> ResearchMemory:
+        """Attach graph entity names to chunks whose text mentions them."""
+        for chunk in self.chunks.values():
+            text_lower = chunk.text.lower()
+            tagged = list(chunk.entities)
+            for entity in graph.entities.values():
+                name = entity.normalized_name.lower()
+                if len(name) > 2 and name in text_lower:
+                    tagged.append(entity.normalized_name)
+                for kw in entity.text.split()[:5]:
+                    kw = kw.strip().lower()
+                    if len(kw) > 3 and kw in text_lower:
+                        tagged.append(entity.normalized_name)
+            chunk.entities = list(dict.fromkeys(tagged))
+        return self
 
     @staticmethod
     def _extract_keywords(text: str) -> list[str]:
@@ -88,6 +163,8 @@ class ResearchMemory:
             },
         }
         path.write_text(json.dumps(payload, indent=2))
+        from atlasse_v2.memory.vector_index import MemoryVectorIndex
+        MemoryVectorIndex(self.paper_id).build(self.chunks).save(base_dir or self.MEMORY_DIR)
         return str(path)
 
     @classmethod

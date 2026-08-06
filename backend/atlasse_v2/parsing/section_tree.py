@@ -7,7 +7,7 @@ import uuid
 
 from atlasse_v2.core.models import SectionNode
 from atlasse_v2.core.types import SectionType
-from atlasse_v2.parsing.document_parser import DocumentParser
+from atlasse_v2.parsing.section_classifier import classify_section
 
 
 class SectionTreeBuilder:
@@ -36,7 +36,7 @@ class SectionTreeBuilder:
             end = matches[i + 1].start() if i + 1 < len(matches) else len(full_text)
             content = full_text[start:end].strip()
             page = self._char_to_page(start, page_offsets)
-            section_type = DocumentParser.classify_section(title)
+            section_type = classify_section(title)
             sections.append(self._make_section(
                 section_id=f"sec_{i}",
                 title=title,

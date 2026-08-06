@@ -2,7 +2,7 @@
 
 Source: [upgrade_v2.md](upgrade_v2.md)  
 Implementation root: [backend/](backend/)  
-Progress tracker: [tracker_v2.md](tracker_v2.md)  
+Progress tracker: [v2tracker.md](v2tracker.md)  
 Task breakdown: [tasks_v2.md](tasks_v2.md)
 
 ---

@@ -16,11 +16,34 @@ Only graph objects may be consumed by downstream stages — never raw paragraphs
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
-from atlasse_v2.core.models import GraphEdge, GraphEntity, ParsedDocument, Provenance, ResearchChunk
+from atlasse_v2.core.models import ExtractedField, GraphEdge, GraphEntity, ParsedDocument, Provenance
 from atlasse_v2.core.types import EdgeType, EntityType
+
+FIELD_ENTITY_MAP = {
+    "problem": EntityType.TASK,
+    "contribution": EntityType.CONTRIBUTION,
+    "task": EntityType.TASK,
+    "dataset": EntityType.DATASET,
+    "metric": EntityType.METRIC,
+    "method": EntityType.METHOD,
+    "architecture": EntityType.MODEL,
+    "loss": EntityType.LOSS,
+    "training": EntityType.HYPERPARAMETER,
+    "evaluation": EntityType.EXPERIMENT,
+    "baseline": EntityType.BASELINE,
+    "limitation": EntityType.LIMITATION,
+    "future_work": EntityType.FUTURE_WORK,
+}
+
+EDGE_RULES = [
+    ("method", "dataset", EdgeType.USES_DATASET),
+    ("method", "metric", EdgeType.REPORTS),
+    ("method", "baseline", EdgeType.COMPARES_AGAINST),
+    ("architecture", "dataset", EdgeType.EVALUATES_ON),
+    ("method", "loss", EdgeType.TRAINED_WITH),
+]
 
 
 class SemanticPaperGraph:
@@ -99,6 +122,37 @@ class SemanticPaperGraph:
                     normalized_name=section.title,
                     provenance=provenance,
                 )
+        return self
+
+    def build_from_extracted(self, extracted: dict[str, ExtractedField]) -> SemanticPaperGraph:
+        """Populate graph from Phase 3 extractor outputs and infer typed edges."""
+        entity_ids: dict[str, str] = {}
+        for field_name, field in extracted.items():
+            if field.missing or not field.value:
+                continue
+            entity_type = FIELD_ENTITY_MAP.get(field_name)
+            if entity_type is None:
+                continue
+            provenance = (
+                field.supporting_spans[0].provenance
+                if field.supporting_spans
+                else Provenance()
+            )
+            eid = self.add_entity(
+                entity_type=entity_type,
+                text=field.value[:500],
+                normalized_name=field_name,
+                provenance=provenance,
+                confidence=field.confidence,
+                citations=field.citations,
+            )
+            entity_ids[field_name] = eid
+
+        for src_field, dst_field, edge_type in EDGE_RULES:
+            src_id = entity_ids.get(src_field)
+            dst_id = entity_ids.get(dst_field)
+            if src_id and dst_id:
+                self.add_edge(src_id, dst_id, edge_type, confidence=0.7)
         return self
 
     def get_entities_by_type(self, entity_type: EntityType) -> list[GraphEntity]:
