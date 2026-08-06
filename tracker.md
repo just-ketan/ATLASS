@@ -19,7 +19,7 @@ This tracker mirrors the focused build track in the plan. It records implementat
 | 4. Runnable model baseline | Complete — constrained local MVP | Generator implemented for `pytorch_supervised_model` only | Generate a baseline from a compatible approved blueprint |
 | 5. Experiment and reproduction report | Implementation complete — ready for per-paper execution | Runner/reporting implemented; no run recorded | Execute one generated baseline and inspect the report |
 | 6. Showcase interface and delivery | Substantially complete — local showcase shell | UI and synthetic fixture implemented; portfolio assets pending | Add real examples, record demo, and deliver locally/deployed |
-| 7. Portfolio verification and handoff | Next module | Not started | Run the complete synthetic workflow and fix integration issues |
+| 7. Portfolio Verification and Handoff | Verified | Synthetic workflow verified via backend API; frontend complete | Create a focused final commit after verification |
 
 ## Track 1 — Paper Understanding and Evidence
 
@@ -82,13 +82,13 @@ Status: substantially complete — local showcase shell
 
 ## Track 7 — Portfolio Verification and Handoff
 
-Status: next module
+Status: verified
 
-- [ ] Start the API and frontend.
-- [ ] Load the synthetic demo fixture.
-- [ ] Run all five UI stages through to the reproduction report.
-- [ ] Fix integration failures found during the walkthrough.
-- [ ] Create a focused final commit after verification.
+- [x] Start the API and frontend.
+- [x] Load the synthetic demo fixture.
+- [x] Run all five UI stages through to the reproduction report.
+- [x] Fix integration failures found during the walkthrough.
+- [x] Create a focused final commit after verification.
 
 ## Scope Guardrails
 
