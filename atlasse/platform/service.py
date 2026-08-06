@@ -259,7 +259,7 @@ class ResearchWorkspaceService:
         system_spec = self.get_system_spec(user_id, paper_id)
         from .reproduction_runner import ReproductionRunner
 
-        report, report_path = ReproductionRunner().run_smoke(manifest, system_spec)
+        report, report_path = ReproductionRunner().run(manifest, system_spec, smoke=True)
         self.store.update_paper_metadata(
             user_id,
             paper_id,

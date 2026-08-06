@@ -26,10 +26,24 @@ class NotFoundError(KeyError):
     """Raised when a workspace resource does not exist or is not owned by a user."""
 
 
-class InMemoryWorkspaceStore:
-    """Small repository used until Postgres is introduced."""
+import json
+import os
+from dataclasses import asdict
 
-    def __init__(self):
+
+def auto_save(method):
+    def wrapper(self, *args, **kwargs):
+        res = method(self, *args, **kwargs)
+        self._save()
+        return res
+    return wrapper
+
+class InMemoryWorkspaceStore:
+
+    """Repository that persists data to a local JSON file."""
+
+    def __init__(self, db_path="data/store.json"):
+        self.db_path = db_path
         self.users: dict[str, User] = {}
         self.users_by_identity: dict[tuple[str, str], str] = {}
         self.papers: dict[str, PaperRecord] = {}
@@ -43,11 +57,80 @@ class InMemoryWorkspaceStore:
         self.repos: dict[str, Repo] = {}
         self.timeline_events: dict[str, TimelineEvent] = {}
         self.user_resources = defaultdict(lambda: defaultdict(list))
+        self._load()
+
+    def _load(self):
+        if not os.path.exists(self.db_path):
+            return
+        try:
+            with open(self.db_path, "r") as f:
+                data = json.load(f)
+            
+            from datetime import datetime
+            
+            def parse_dt(dt_str):
+                # Handle potential timezone issues or missing Z
+                if dt_str.endswith("Z"):
+                    dt_str = dt_str[:-1] + "+00:00"
+                return datetime.fromisoformat(dt_str)
+            
+            for k, v in data.get("users", {}).items():
+                if "created_at" in v and isinstance(v["created_at"], str): v["created_at"] = parse_dt(v["created_at"])
+                self.users[k] = User(**v)
+            
+            for k, v in data.get("users_by_identity", {}).items():
+                import ast
+                try:
+                    t_key = tuple(ast.literal_eval(k))
+                    self.users_by_identity[t_key] = v
+                except:
+                    pass
+
+            for k, v in data.get("papers", {}).items():
+                if "created_at" in v and isinstance(v["created_at"], str): v["created_at"] = parse_dt(v["created_at"])
+                if "updated_at" in v and isinstance(v["updated_at"], str): v["updated_at"] = parse_dt(v["updated_at"])
+                self.papers[k] = PaperRecord(**v)
+                
+            for k, events in data.get("paper_events", {}).items():
+                self.paper_events[k] = []
+                for v in events:
+                    if "created_at" in v and isinstance(v["created_at"], str): v["created_at"] = parse_dt(v["created_at"])
+                    self.paper_events[k].append(PaperProcessingEvent(**v))
+                    
+            for k, v in data.get("projects", {}).items():
+                if "created_at" in v and isinstance(v["created_at"], str): v["created_at"] = parse_dt(v["created_at"])
+                self.projects[k] = Project(**v)
+
+            for u_id, resources in data.get("user_resources", {}).items():
+                for res_type, ids in resources.items():
+                    self.user_resources[u_id][res_type] = ids
+
+        except Exception as e:
+            print(f"Failed to load store from {self.db_path}: {e}")
+
+    def _save(self):
+        os.makedirs(os.path.dirname(self.db_path) or ".", exist_ok=True)
+        def default_serializer(obj):
+            if hasattr(obj, "isoformat"): return obj.isoformat()
+            if hasattr(obj, "value"): return obj.value # Enum
+            raise TypeError(f"Type not serializable: {type(obj)}")
+
+        data = {
+            "users": {k: asdict(v) for k, v in self.users.items()},
+            "users_by_identity": {str(list(k)): v for k, v in self.users_by_identity.items()},
+            "papers": {k: asdict(v) for k, v in self.papers.items()},
+            "paper_events": {k: [asdict(e) for e in events] for k, events in self.paper_events.items()},
+            "projects": {k: asdict(v) for k, v in self.projects.items()},
+            "user_resources": {u: dict(res) for u, res in self.user_resources.items()}
+        }
+        with open(self.db_path, "w") as f:
+            json.dump(data, f, default=default_serializer, indent=2)
 
     @staticmethod
     def _id(prefix: str) -> str:
         return f"{prefix}_{uuid4().hex[:12]}"
 
+    @auto_save
     def upsert_oauth_user(self, provider: str, subject: str, email: str, name: str) -> User:
         key = (provider, subject)
         existing_id = self.users_by_identity.get(key)
@@ -68,6 +151,7 @@ class InMemoryWorkspaceStore:
         self.users_by_identity[key] = user.id
         return user
 
+    @auto_save
     def create_user(self, email: str, name: str) -> User:
         user = User(id=self._id("user"), email=email, name=name)
         self.users[user.id] = user
@@ -79,6 +163,7 @@ class InMemoryWorkspaceStore:
         except KeyError as exc:
             raise NotFoundError(f"User {user_id} not found") from exc
 
+    @auto_save
     def add_paper(self, user_id: str, title: str, source_type: str, source_ref: str, **metadata) -> PaperRecord:
         self.get_user(user_id)
         paper = PaperRecord(
@@ -96,6 +181,7 @@ class InMemoryWorkspaceStore:
         self.add_paper_event(user_id, paper.id, PaperStatus.UPLOADED, "Paper record created.")
         return paper
 
+    @auto_save
     def update_paper_status(
         self,
         user_id: str,
@@ -110,12 +196,14 @@ class InMemoryWorkspaceStore:
         self.add_paper_event(user_id, paper_id, status, message or status.value.replace("_", " ").title(), **metadata)
         return paper
 
+    @auto_save
     def update_paper_metadata(self, user_id: str, paper_id: str, **metadata) -> PaperRecord:
         paper = self.get_paper(user_id, paper_id)
         paper.metadata.update({k: v for k, v in metadata.items() if v is not None})
         paper.updated_at = utc_now()
         return paper
 
+    @auto_save
     def add_paper_event(
         self,
         user_id: str,
@@ -150,6 +238,7 @@ class InMemoryWorkspaceStore:
         self.get_user(user_id)
         return [self.papers[pid] for pid in self.user_resources[user_id]["papers"]]
 
+    @auto_save
     def create_project(self, user_id: str, name: str, description: str = "") -> Project:
         self.get_user(user_id)
         project = Project(id=self._id("project"), user_id=user_id, name=name, description=description)
@@ -161,6 +250,7 @@ class InMemoryWorkspaceStore:
         self.get_user(user_id)
         return [self.projects[project_id] for project_id in self.user_resources[user_id]["projects"]]
 
+    @auto_save
     def add_project_paper(self, user_id: str, project_id: str, paper_id: str) -> Project:
         project = self.get_project(user_id, project_id)
         self.get_paper(user_id, paper_id)
@@ -175,6 +265,7 @@ class InMemoryWorkspaceStore:
             raise NotFoundError(f"Project {project_id} not found")
         return project
 
+    @auto_save
     def add_dataset(self, user_id: str, name: str, url: str, description: str = "") -> Dataset:
         self.get_user(user_id)
         dataset = Dataset(id=self._id("dataset"), user_id=user_id, name=name, url=url, description=description)
@@ -188,6 +279,7 @@ class InMemoryWorkspaceStore:
             raise NotFoundError(f"Dataset {dataset_id} not found")
         return dataset
 
+    @auto_save
     def add_project_dataset(self, user_id: str, project_id: str, dataset_id: str) -> Project:
         project = self.get_project(user_id, project_id)
         self.get_dataset(user_id, dataset_id)
@@ -196,6 +288,7 @@ class InMemoryWorkspaceStore:
         self.add_timeline_event(user_id, project_id, "dataset_added", f"Dataset {dataset_id} added to project.")
         return project
 
+    @auto_save
     def add_repo(self, user_id: str, name: str, url: str, description: str = "") -> Repo:
         self.get_user(user_id)
         repo = Repo(id=self._id("repo"), user_id=user_id, name=name, url=url, description=description)
@@ -209,6 +302,7 @@ class InMemoryWorkspaceStore:
             raise NotFoundError(f"Repo {repo_id} not found")
         return repo
 
+    @auto_save
     def add_project_repo(self, user_id: str, project_id: str, repo_id: str) -> Project:
         project = self.get_project(user_id, project_id)
         self.get_repo(user_id, repo_id)
@@ -217,6 +311,7 @@ class InMemoryWorkspaceStore:
         self.add_timeline_event(user_id, project_id, "repo_added", f"Repo {repo_id} added to project.")
         return project
 
+    @auto_save
     def add_timeline_event(self, user_id: str, project_id: str, event_type: str, description: str) -> TimelineEvent:
         self.get_project(user_id, project_id)
         event = TimelineEvent(
@@ -238,6 +333,7 @@ class InMemoryWorkspaceStore:
         ]
         return sorted(events, key=lambda e: e.created_at)
 
+    @auto_save
     def add_note(
         self,
         user_id: str,
@@ -258,6 +354,7 @@ class InMemoryWorkspaceStore:
             self.projects[project_id].note_ids.append(note.id)
         return note
 
+    @auto_save
     def create_conversation(
         self,
         user_id: str,
@@ -283,6 +380,7 @@ class InMemoryWorkspaceStore:
             self.projects[project_id].conversation_ids.append(conversation.id)
         return conversation
 
+    @auto_save
     def add_message(self, user_id: str, conversation_id: str, role: str, content: str) -> Conversation:
         conversation = self.conversations.get(conversation_id)
         if not conversation or conversation.user_id != user_id:
@@ -290,6 +388,7 @@ class InMemoryWorkspaceStore:
         conversation.messages.append(Message(role=role, content=content))
         return conversation
 
+    @auto_save
     def remember(
         self,
         user_id: str,
@@ -315,6 +414,7 @@ class InMemoryWorkspaceStore:
         self.get_user(user_id)
         return [self.memories[mid] for mid in self.user_resources[user_id]["memories"]]
 
+    @auto_save
     def add_citation(self, user_id: str, paper_id: str, text: str, style: str = "apa", **metadata) -> Citation:
         self.get_paper(user_id, paper_id)
         citation = Citation(

@@ -383,11 +383,7 @@ class PaperMemory:
         retrieved_text = " ".join(r["text"].lower() for r in ranked[:3])
         token_overlap = any(t in retrieved_text for t in query_tokens) if query_tokens else True
 
-        confidence = float(max(
-            max(0.0, min(1.0, (max_cosine - 0.2) / 0.6)),
-            ranked[0]["score"] if ranked else 0.0,
-        ))
-        confidence = max(0.0, min(1.0, confidence))
+        confidence = float(max(0.0, min(1.0, (max_cosine - 0.45) / 0.35))) if ranked else 0.0
         if query_tokens and not token_overlap and not detect_intent(text):
             confidence = min(confidence, 0.05)
 
