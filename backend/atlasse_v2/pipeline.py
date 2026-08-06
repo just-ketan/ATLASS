@@ -10,6 +10,7 @@ from atlasse_v2.memory.research_memory import ResearchMemory
 from atlasse_v2.parsing.document_parser import DocumentParser
 from atlasse_v2.parsing.document_store import DocumentStore
 from atlasse_v2.retrieval.evidence_ranker import EvidenceRanker
+from atlasse_v2.specification.spec_builder import SpecBuilder
 
 
 class PaperPipeline:
@@ -58,6 +59,10 @@ class PaperPipeline:
 
         graph.save(base_dir=f"{self.data_dir}/knowledge_graphs")
 
+        spec_builder = SpecBuilder(ranker)
+        spec = spec_builder.build(paper_id)
+        spec_builder.save(spec, base_dir=f"{self.data_dir}/specifications")
+
         return {
             "paper_id": paper_id,
             "title": document.title,
@@ -65,6 +70,7 @@ class PaperPipeline:
             "paragraph_count": len(document.paragraphs),
             "chunk_count": len(memory.chunks),
             "entity_count": len(graph.entities),
+            "parser_backend": document.metadata.get("parser_backend"),
             "extracted_fields": {
                 name: {
                     "value": f.value[:200] if f.value else None,
@@ -79,9 +85,21 @@ class PaperPipeline:
         parsed = DocumentStore.load(paper_id, base_dir=f"{self.data_dir}/parsed")
         memory = ResearchMemory.load(paper_id, base_dir=f"{self.data_dir}/memory_indices")
         graph = SemanticPaperGraph.load(paper_id, base_dir=f"{self.data_dir}/knowledge_graphs")
+        spec_path = Path(f"{self.data_dir}/specifications") / paper_id / "system_spec.json"
         return {
             "paper_id": paper_id,
             "parsed": parsed is not None,
             "memory_chunks": len(memory.chunks),
             "graph_entities": len(graph.entities),
+            "has_spec": spec_path.exists(),
         }
+
+    def get_spec(self, paper_id: str) -> dict | None:
+        spec_path = Path(f"{self.data_dir}/specifications") / paper_id / "system_spec.json"
+        if not spec_path.exists():
+            return None
+        import json
+        return json.loads(spec_path.read_text())
+
+    def get_graph(self, paper_id: str) -> SemanticPaperGraph:
+        return SemanticPaperGraph.load(paper_id, base_dir=f"{self.data_dir}/knowledge_graphs")

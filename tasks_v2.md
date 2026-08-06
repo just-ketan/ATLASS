@@ -21,11 +21,11 @@ Current sprint. Goal: parsed documents → fine-grained memory → ranked retrie
 | P1-T04 | Implement PyMuPDF backend | 1 | done | `backend/atlasse_v2/parsing/backends/` |
 | P1-T05 | Implement GROBID backend | 1 | pending | `backend/atlasse_v2/parsing/backends/` |
 | P1-T06 | Implement Docling backend | 1 | pending | `backend/atlasse_v2/parsing/backends/` |
-| P1-T07 | Implement pdfplumber backend | 1 | pending | `backend/atlasse_v2/parsing/backends/` |
+| P1-T07 | Implement pdfplumber backend | 1 | done | `backend/atlasse_v2/parsing/backends/` |
 | P1-T08 | Implement OCR fallback backend | 1 | pending | `backend/atlasse_v2/parsing/backends/` |
-| P1-T09 | Persist ParsedDocument to `data/v2/parsed/{paper_id}/` | 1 | pending | `backend/atlasse_v2/parsing/` |
-| P1-T10 | Unit tests: section classification accuracy | 1 | pending | `backend/tests/parsing/` |
-| P1-T11 | Unit tests: paragraph ID uniqueness and coverage | 1 | pending | `backend/tests/parsing/` |
+| P1-T09 | Persist ParsedDocument to `data/v2/parsed/{paper_id}/` | 1 | done | `backend/atlasse_v2/parsing/` |
+| P1-T10 | Unit tests: section classification accuracy | 1 | done | `backend/tests/` |
+| P1-T11 | Unit tests: paragraph ID uniqueness and coverage | 1 | done | `backend/tests/` |
 | P1-T12 | Integration test: parse LoRA paper (2106.09685) | 1 | pending | `backend/tests/parsing/` |
 | P5-T01 | Implement ResearchMemory builder from ParsedDocument | 5 | pending | `backend/atlasse_v2/memory/` |
 | P5-T02 | Split into chunk types: paragraph, table, caption, equation, algorithm | 5 | pending | `backend/atlasse_v2/memory/` |

@@ -82,6 +82,49 @@ def create_app(data_dir: str = "data/v2"):
         qa = QAPipeline(ranker)
         return qa.ask(body.question, paper_id)
 
+    @app.get("/v2/papers/{paper_id}/spec")
+    def get_spec(paper_id: str):
+        spec = orchestrator.pipeline.get_spec(paper_id)
+        if spec is None:
+            raise HTTPException(status_code=404, detail="Specification not found — ingest first")
+        return spec
+
+    @app.get("/v2/papers/{paper_id}/graph")
+    def get_graph(paper_id: str):
+        graph = orchestrator.pipeline.get_graph(paper_id)
+        if not graph.entities:
+            raise HTTPException(status_code=404, detail="Graph not found — ingest first")
+        return {
+            "paper_id": paper_id,
+            "entities": [
+                {
+                    "entity_id": e.entity_id,
+                    "entity_type": e.entity_type.value,
+                    "normalized_name": e.normalized_name,
+                    "confidence": e.confidence,
+                    "text_preview": e.text[:200],
+                }
+                for e in graph.entities.values()
+            ],
+            "edges": [
+                {
+                    "source_id": edge.source_id,
+                    "target_id": edge.target_id,
+                    "edge_type": edge.edge_type.value,
+                }
+                for edge in graph.edges
+            ],
+        }
+
+    @app.get("/v2/papers/{paper_id}/retrieval-debug")
+    def retrieval_debug(paper_id: str, q: str):
+        memory = ResearchMemory.load(paper_id, base_dir=f"{data_dir}/memory_indices")
+        if not memory.chunks:
+            raise HTTPException(status_code=404, detail="Paper memory not found — ingest first")
+        ranker = EvidenceRanker(memory)
+        _, trace = ranker.retrieve_with_trace(q, paper_id=paper_id, top_k=5)
+        return trace
+
     return app
 
 

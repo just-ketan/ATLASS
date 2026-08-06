@@ -62,3 +62,20 @@ def test_problem_query_from_introduction():
     )
     assert len(results) == 1
     assert results[0].paragraph_id == "p_intro"
+
+
+def test_retrieval_trace_captures_scores():
+    doc = _make_document()
+    memory = ResearchMemory("test_paper").build_from_document(doc)
+    ranker = EvidenceRanker(memory)
+    _, trace = ranker.retrieve_with_trace(
+        query="what datasets are used",
+        sections=[SectionType.EXPERIMENTS],
+        top_k=2,
+    )
+    assert trace["query"]
+    assert trace["candidate_count"] >= 1
+    assert len(trace["ranked"]) <= 2
+    assert "score" in trace["ranked"][0]
+    assert "components" in trace["ranked"][0]
+

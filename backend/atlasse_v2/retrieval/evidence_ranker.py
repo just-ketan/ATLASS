@@ -53,6 +53,7 @@ class EvidenceRanker:
         self._bm25_index: dict[str, Counter] = {}
         self._doc_lengths: dict[str, int] = {}
         self._avg_dl = 0.0
+        self.last_trace: dict | None = None
         self._build_bm25()
 
     def _build_bm25(self) -> None:
@@ -70,7 +71,18 @@ class EvidenceRanker:
         sections: list[SectionType] | None = None,
         top_k: int = 5,
     ) -> list[ResearchChunk]:
+        results, _ = self.retrieve_with_trace(query, paper_id=paper_id, sections=sections, top_k=top_k)
+        return results
+
+    def retrieve_with_trace(
+        self,
+        query: str,
+        paper_id: str | None = None,
+        sections: list[SectionType] | None = None,
+        top_k: int = 5,
+    ) -> tuple[list[ResearchChunk], dict]:
         candidates = list(self.memory.chunks.values())
+        filtered_by_section = bool(sections)
         if sections:
             section_values = {s.value for s in sections}
             candidates = [
@@ -79,16 +91,47 @@ class EvidenceRanker:
             ]
         if not candidates:
             candidates = list(self.memory.chunks.values())
+            filtered_by_section = False
 
         scored = []
         query_tokens = self._tokenize(query)
         query_set = set(query_tokens)
+        trace_entries = []
         for chunk in candidates:
-            score = self._combined_score(chunk, query, query_tokens, query_set)
-            scored.append((score, chunk))
+            semantic = self._semantic_score(chunk.text, query)
+            keyword = self._bm25_score(chunk.chunk_id, query_tokens)
+            section = self._section_weight(chunk)
+            entity = self._entity_overlap(chunk, query_set)
+            citation = self._citation_overlap(chunk, query)
+            total = semantic + keyword + section + entity + citation
+            scored.append((total, chunk))
+            trace_entries.append({
+                "chunk_id": chunk.chunk_id,
+                "paragraph_id": chunk.paragraph_id,
+                "section": chunk.section.value if isinstance(chunk.section, SectionType) else chunk.section,
+                "page": chunk.page,
+                "score": round(total, 4),
+                "components": {
+                    "semantic": round(semantic, 4),
+                    "keyword": round(keyword, 4),
+                    "section": round(section, 4),
+                    "entity": round(entity, 4),
+                    "citation": round(citation, 4),
+                },
+            })
 
         scored.sort(key=lambda x: x[0], reverse=True)
-        return [chunk for _, chunk in scored[:top_k]]
+        trace_entries.sort(key=lambda e: e["score"], reverse=True)
+        self.last_trace = {
+            "query": query,
+            "paper_id": paper_id,
+            "sections": [s.value for s in sections] if sections else [],
+            "filtered_by_section": filtered_by_section,
+            "candidate_count": len(candidates),
+            "top_k": top_k,
+            "ranked": trace_entries[:top_k],
+        }
+        return [chunk for _, chunk in scored[:top_k]], self.last_trace
 
     def _combined_score(
         self,

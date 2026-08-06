@@ -34,11 +34,11 @@ Every missing field must be explicitly marked. **Never hallucinate.**
 
 | Phase | Name | Plan Status | Tracker State | Next Action |
 |-------|------|-------------|---------------|-------------|
-| 1 | Robust Document Parsing | Scaffolded | PyMuPDF backend + section tree | Add GROBID/Docling backends, OCR fallback |
+| 1 | Robust Document Parsing | In progress | PyMuPDF + pdfplumber fallback | GROBID/Docling backends, real PDF integration test |
 | 2 | Semantic Paper Graph | Scaffolded | Typed entities/edges, heuristic build | Wire to Phase 3 extractors for entity population |
-| 3 | Research Information Extraction | Scaffolded | 13 extractors with stub logic | Connect to Phase 4 retriever, add LLM evidence gate |
-| 4 | Evidence Ranking | Not started | — | Implement BM25 + dense + cross-encoder reranker |
-| 5 | Research Memory | Not started | — | Build paragraph/table/equation chunk store |
+| 3 | Research Information Extraction | In progress | 13 extractors wired to ranker | LLM evidence gate |
+| 4 | Evidence Ranking | In progress | BM25 + section priors + trace | Dense + cross-encoder reranking |
+| 5 | Research Memory | In progress | Paragraph chunks with persistence | Table/caption/equation chunks, FAISS index |
 | 6 | Question Answering | Not started | — | Implement intent → retrieve → validate → answer pipeline |
 | 7 | System Specification | Not started | — | Compose extractors into versioned system_spec.json |
 | 8 | Blueprint Generator | Not started | — | Derive module tree from architecture graph |
