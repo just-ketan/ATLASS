@@ -44,6 +44,11 @@ def main(argv: list[str] | None = None) -> int:
     trace.add_argument("paper_id")
     trace.add_argument("--data-dir", default="data/v2")
 
+    research = sub.add_parser("research", help="Run research extension mode after reproduction")
+    research.add_argument("paper_id")
+    research.add_argument("--data-dir", default="data/v2")
+    research.add_argument("--export", default="", help="Comma-separated export formats")
+
     args = parser.parse_args(argv)
 
     if args.command == "ingest":
@@ -116,6 +121,26 @@ def main(argv: list[str] | None = None) -> int:
         if result is None:
             print("Agent trace not found — run ingest first.", file=sys.stderr)
             return 1
+        print(json.dumps(result, indent=2))
+        return 0
+
+    if args.command == "research":
+        from atlasse_v2.pipeline import PaperPipeline
+        from atlasse_v2.research.engine import ResearchExtensionEngine
+        pipeline = PaperPipeline(data_dir=args.data_dir)
+        try:
+            result = pipeline.run_research_mode(args.paper_id)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        if args.export:
+            engine = ResearchExtensionEngine()
+            export = engine.export(
+                result,
+                [f.strip() for f in args.export.split(",")],
+                base_dir=f"{args.data_dir}/research_reports",
+            )
+            result = {"report": result, "export": export}
         print(json.dumps(result, indent=2))
         return 0
 

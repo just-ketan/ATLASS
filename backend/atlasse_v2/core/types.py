@@ -91,3 +91,20 @@ class ReproductionStatus(str, Enum):
     HYPERPARAMETERS_MISSING = "hyperparameters_missing"
     TRAINING_INFEASIBLE = "training_infeasible"
     METRIC_COMPARABLE = "metric_comparable"
+
+
+class EvidenceLabel(str, Enum):
+    """How strongly a research recommendation is grounded."""
+
+    PAPER_SUPPORTED = "paper_supported"
+    EVIDENCE_BACKED_INFERENCE = "evidence_backed_inference"
+    HEURISTIC_SUGGESTION = "heuristic_suggestion"
+    SPECULATIVE_RESEARCH_IDEA = "speculative_research_idea"
+
+
+EVIDENCE_LABEL_DISPLAY: dict[str, str] = {
+    EvidenceLabel.PAPER_SUPPORTED.value: "Paper-supported",
+    EvidenceLabel.EVIDENCE_BACKED_INFERENCE.value: "Evidence-backed inference",
+    EvidenceLabel.HEURISTIC_SUGGESTION.value: "Heuristic suggestion",
+    EvidenceLabel.SPECULATIVE_RESEARCH_IDEA.value: "Speculative research idea",
+}

@@ -12,6 +12,7 @@ from atlasse_v2.agents.specialized import (
     DocumentAgent,
     EvidenceAgent,
     EvaluationAgent,
+    ResearchExtensionAgent,
     ResearchAgent,
     RetrievalAgent,
     SpecificationAgent,
@@ -79,8 +80,14 @@ class AgentOrchestrator:
         trace.add(bl_result)
 
         baseline = self.pipeline.get_baseline(paper_id) or {}
+        blueprint = self.pipeline.get_blueprint(paper_id) or {}
         eval_result = EvaluationAgent().run(paper_id, baseline, spec, self.data_dir)
         trace.add(eval_result)
+
+        research_ext = ResearchExtensionAgent().run(
+            paper_id, baseline, spec, blueprint, self.data_dir, graph,
+        )
+        trace.add(research_ext)
 
         summary = {
             "paper_id": paper_id,
@@ -93,6 +100,8 @@ class AgentOrchestrator:
             "baseline_supported": bl_result.payload.get("supported"),
             "reproduction_level": eval_result.payload.get("level"),
             "metric_comparable": eval_result.payload.get("metric_comparable"),
+            "research_experiments": research_ext.payload.get("experiment_count"),
+            "research_mode": True,
         }
         return self._finalize(trace, summary), trace.to_dict()
 
