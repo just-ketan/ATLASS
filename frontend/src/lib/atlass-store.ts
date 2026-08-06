@@ -38,9 +38,9 @@ export function useAtlassUser() {
     setHydrated(true);
   }, []);
 
-  const signIn = useCallback(async () => {
+  const signIn = useCallback(async (email: string = "student@atlass.local", name: string = "Student") => {
     try {
-      const res = await api.auth.oauth();
+      const res = await api.auth.oauth(email, name);
       const u = { id: res.user.id, email: res.user.email, name: res.user.name };
       saveUser(u);
       setUser(u);

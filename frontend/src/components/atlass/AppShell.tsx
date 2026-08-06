@@ -15,6 +15,7 @@ import {
 import { clsx } from "clsx";
 import { useEffect, useState, type ReactNode } from "react";
 import { CommandPalette } from "./CommandPalette";
+import { useAtlassUser } from "@/lib/atlass-store";
 
 const NAV: { to: string; label: string; icon: typeof LayoutGrid; exact?: boolean }[] = [
   { to: "/app", label: "Overview", icon: LayoutGrid, exact: true },
@@ -37,6 +38,13 @@ export function AppShell({
   const [paletteOpen, setPaletteOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, hydrated, signOut } = useAtlassUser();
+
+  useEffect(() => {
+    if (hydrated && !user) {
+      navigate({ to: "/login" });
+    }
+  }, [hydrated, user, navigate]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -48,6 +56,10 @@ export function AppShell({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  if (!hydrated || !user) {
+    return <div className="min-h-dvh bg-background" />; // Prevent flash of content
+  }
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
@@ -103,6 +115,13 @@ export function AppShell({
               <span className="text-mono text-[11px] text-foreground">integrity · 0.94</span>
             </div>
           </div>
+          
+          <button
+            onClick={() => signOut()}
+            className="ml-2 text-[12px] font-medium text-muted-foreground hover:text-foreground"
+          >
+            Sign out
+          </button>
         </div>
       </header>
 

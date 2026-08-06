@@ -58,10 +58,7 @@ const SPEC_FIELD_ORDER = [
 
 function PaperWorkspace() {
   const { paperId } = Route.useParams();
-  const { user, signIn } = useAtlassUser();
-  useEffect(() => {
-    if (!user) void signIn();
-  }, [user, signIn]);
+  const { user } = useAtlassUser();
   const userId = user?.id;
   const [stage, setStage] = useState<StageId>("understand");
   const [activeEvidence, setActiveEvidence] = useState<{
@@ -962,6 +959,18 @@ function ReportStage({
           <p className="mt-2 text-[14px] leading-relaxed text-foreground/90">
             {report.verdict ??
               "This synthetic smoke run cannot be fairly compared to the paper's reported results due to reduced compute, dataset scale, or missing hyperparameters. Treat observed metrics as a sanity signal only."}
+          </p>
+        </div>
+      )}
+
+      {report.comparability === "comparable" && (
+        <div className="mt-6 panel border-[color:var(--evidence)]/30 bg-[color:var(--evidence-soft)]/40 p-6">
+          <div className="label-eyebrow text-[color:var(--evidence)]">
+            Comparability · comparable to paper metrics
+          </div>
+          <p className="mt-2 text-[14px] leading-relaxed text-foreground/90">
+            {report.verdict ??
+              "This baseline uses a real-data adapter and is comparable to the original paper's reported results, subject to the listed architecture and budget substitutions."}
           </p>
         </div>
       )}

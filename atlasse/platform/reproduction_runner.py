@@ -19,12 +19,16 @@ class ReproductionRunner:
     def __init__(self, report_dir: str | Path = REPORT_DIR):
         self.report_dir = Path(report_dir)
 
-    def run_smoke(self, manifest: dict, system_spec: dict) -> tuple[dict, str]:
+    def run(self, manifest: dict, system_spec: dict, smoke: bool = False) -> tuple[dict, str]:
         project_dir = Path(manifest["project_dir"]).resolve()
         if not project_dir.is_dir() or not (project_dir / "atlass_manifest.json").exists():
             raise FileNotFoundError("Generated baseline project is unavailable")
 
-        train = self._run(project_dir, [sys.executable, "-m", "src.train", "--config", "config/experiment.json", "--epochs", "1"])
+        train_cmd = [sys.executable, "-m", "src.train", "--config", "config/experiment.json"]
+        if smoke:
+            train_cmd.extend(["--epochs", "1"])
+        
+        train = self._run(project_dir, train_cmd)
         evaluate = self._run(project_dir, [sys.executable, "-m", "src.evaluate", "--config", "config/experiment.json"])
         observed = self._json_output(evaluate["stdout"])
         report = {
@@ -33,13 +37,12 @@ class ReproductionRunner:
             "created_at": datetime.now(timezone.utc).isoformat(),
             "status": "completed" if train["return_code"] == 0 and evaluate["return_code"] == 0 else "failed",
             "baseline_scope": manifest["scope"],
+            "is_smoke_run": smoke,
             "commands": {"train": train, "evaluate": evaluate},
+            "data_provenance": manifest.get("data_provenance", {}),
             "observed_metrics": observed,
             "paper_reported_results": system_spec.get("fields", {}).get("reported_results", {}).get("value"),
-            "comparison": {
-                "status": "not_comparable",
-                "reason": "The generated smoke experiment uses synthetic data and validates execution only; it cannot be compared to paper metrics.",
-            },
+            "comparison": self._compare_metrics(manifest, observed, smoke),
             "assumptions": manifest.get("assumptions", []),
             "evidence": {
                 "reported_results": system_spec.get("fields", {}).get("reported_results", {}).get("evidence", []),
@@ -50,6 +53,36 @@ class ReproductionRunner:
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, indent=2))
         return report, str(report_path)
+
+    @staticmethod
+    def _compare_metrics(manifest: dict, observed: dict, smoke: bool) -> dict:
+        provenance = manifest.get("data_provenance", {})
+        if provenance.get("synthetic", True):
+            return {
+                "status": "not_comparable",
+                "reason": "The generated experiment uses synthetic data and validates execution only; it cannot be compared to paper metrics.",
+            }
+        if smoke:
+            return {
+                "status": "not_comparable",
+                "reason": "This is a smoke run (1 epoch) on real data. Full training is required for comparison.",
+            }
+        
+        reported = manifest.get("paper_reported_metrics", {})
+        if "accuracy" not in observed or "accuracy" not in reported:
+            return {
+                "status": "not_comparable",
+                "reason": "Missing either observed accuracy or an extractable numeric accuracy from paper evidence.",
+            }
+
+        delta = observed["accuracy"] - reported["accuracy"]
+        return {
+            "status": "comparable",
+            "reason": f"Baseline evaluated on {provenance.get('dataset', 'real data')} ({provenance.get('split', 'unknown')}). Architecture and training budget substitutions apply.",
+            "paper_accuracy": reported["accuracy"],
+            "observed_accuracy": observed["accuracy"],
+            "delta": delta,
+        }
 
     @staticmethod
     def _run(project_dir: Path, command: list[str]) -> dict:

@@ -84,17 +84,17 @@ class PaperJobPipeline:
                 memory_index_path=memory._index_path(),
             )
 
-            from atlasse.knowledge_engine.paper_understanding.concept_extractor import ConceptExtractor
+            from atlasse.knowledge_engine.paper_understanding.canonical_extractor import CanonicalExtractor
 
-            extractor = ConceptExtractor(paper_id=paper_id)
-            knowledge_artifact = extractor.extract_from_chunks(list(memory.chunk_metadata.values()))
+            extractor = CanonicalExtractor(paper_id=paper_id)
+            knowledge_artifact = extractor.extract(json_path=json_path, chunks=list(memory.chunk_metadata.values()))
             knowledge_path = extractor.save(knowledge_artifact)
             self.workspace.record_paper_knowledge(user_id, paper_id, knowledge_artifact, knowledge_path)
             self._update_status(
                 user_id,
                 paper_id,
                 PaperStatus.CREATING_EMBEDDINGS,
-                "Extracted concepts and entities.",
+                "Extracted concepts, entities, and structured understanding.",
                 knowledge_path=knowledge_path,
                 concepts=knowledge_artifact["summary"]["concepts"],
                 entities=knowledge_artifact["summary"]["entities"],

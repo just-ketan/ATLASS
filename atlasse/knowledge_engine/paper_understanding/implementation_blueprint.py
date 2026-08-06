@@ -53,6 +53,10 @@ class ImplementationBlueprintGenerator:
             "dependencies": [
                 {"package": "torch", "reason": "Model and training implementation."},
                 {"package": "numpy", "reason": "Data and metric utilities."},
+                *(
+                    [{"package": "scikit-learn", "reason": "Load the public UCI Iris dataset and create a deterministic split."}]
+                    if family == "pytorch_iris_classifier" else []
+                ),
             ],
             "evidence_map": self._evidence_map(fields),
             "assumptions": assumptions,
@@ -79,6 +83,8 @@ class ImplementationBlueprintGenerator:
             cls._value(fields, "model_components"),
             cls._value(fields, "datasets"),
         ])).lower()
+        if "iris" in text:
+            return "pytorch_iris_classifier"
         if any(term in text for term in ("transformer", "language model", "token", "lora")):
             return "pytorch_text_model"
         if any(term in text for term in ("image", "vision", "imagenet", "cifar")):

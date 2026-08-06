@@ -95,7 +95,10 @@ const report = (item: any): RunReport => ({
 export const api = {
   base: BASE_URL,
   auth: {
-    oauth: async (): Promise<AuthResponse> => ({ user: await request<any>("/auth/oauth", { method: "POST", json: { provider: "demo", subject: "student-demo", email: "student@atlass.local", name: "Student" } }) }),
+    oauth: async (email: string, name: string): Promise<AuthResponse> => {
+      const subject = email.replace(/[^a-zA-Z0-9]/g, "-");
+      return { user: await request<any>("/auth/oauth", { method: "POST", json: { provider: "demo", subject, email, name } }) };
+    },
   },
   dashboard: async (userId: ID): Promise<DashboardData> => {
     const item = await request<any>(`/users/${userId}/dashboard`);

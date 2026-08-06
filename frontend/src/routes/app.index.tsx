@@ -17,10 +17,7 @@ export const Route = createFileRoute("/app/")({
 });
 
 function OverviewPage() {
-  const { user, hydrated, signIn } = useAtlassUser();
-  useEffect(() => {
-    if (hydrated && !user) void signIn();
-  }, [hydrated, user, signIn]);
+  const { user, hydrated } = useAtlassUser();
 
   const userId = user?.id;
   const dashboard = useQuery({

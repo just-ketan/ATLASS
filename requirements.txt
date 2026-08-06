@@ -5,6 +5,7 @@ faiss-cpu
 rank-bm25
 transformers
 torch
+scikit-learn
 tqdm
 pydantic
 python-dotenv
