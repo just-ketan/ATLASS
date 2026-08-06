@@ -35,14 +35,13 @@ Every missing field must be explicitly marked. **Never hallucinate.**
 | Phase | Name | Plan Status | Tracker State | Next Action |
 |-------|------|-------------|---------------|-------------|
 | 1 | Robust Document Parsing | In progress | PyMuPDF + pdfplumber fallback | GROBID/Docling backends, real PDF integration test |
-| 2 | Semantic Paper Graph | Scaffolded | Typed entities/edges, heuristic build | Wire to Phase 3 extractors for entity population |
+| 2 | Semantic Paper Graph | In progress | Extractor-driven entities + edge inference | Richer edge rules, graph query API |
 | 3 | Research Information Extraction | In progress | 13 extractors wired to ranker | LLM evidence gate |
-| 4 | Evidence Ranking | In progress | BM25 + section priors + trace | Dense + cross-encoder reranking |
-| 5 | Research Memory | In progress | Paragraph chunks with persistence | Table/caption/equation chunks, FAISS index |
-| 6 | Question Answering | Not started | — | Implement intent → retrieve → validate → answer pipeline |
-| 7 | System Specification | Not started | — | Compose extractors into versioned system_spec.json |
-| 8 | Blueprint Generator | Not started | — | Derive module tree from architecture graph |
-| 9 | Baseline Generator | Not started | — | Model-family detection + template filling |
+| 4 | Evidence Ranking | In progress | BM25 + dense + section priors + trace | Cross-encoder reranking |
+| 5 | Research Memory | In progress | Paragraph + caption/table/equation chunks | FAISS vector index |
+| 7 | System Specification | In progress | SpecBuilder in pipeline | No-field-reuse validation in CI |
+| 8 | Blueprint Generator | In progress | Evidence-linked modules in pipeline | Full flow derivation |
+| 9 | Baseline Generator | In progress | Family detection in pipeline | Template file generation |
 | 10 | Reproduction Engine | Not started | — | Smoke/partial/full classification |
 | 11 | Evaluation Framework | Not started | — | Golden paper benchmark harness |
 | 12 | Agentic Pipeline | Not started | — | Agent orchestration with structured objects |
@@ -61,13 +60,13 @@ Every missing field must be explicitly marked. **Never hallucinate.**
 - [x] `DocumentParser` orchestrator with backend chain interface
 - [x] `SectionTreeBuilder` with paragraph IDs and cross-references
 - [x] PyMuPDF backend implementation
+- [x] pdfplumber backend integration
+- [x] Persist parsed document artifact to `data/v2/parsed/`
+- [x] Unit tests for section classification and paragraph ID assignment
+- [x] Integration test on LoRA paper (2106.09685)
 - [ ] GROBID backend integration
 - [ ] Docling backend integration
-- [ ] pdfplumber backend integration
 - [ ] OCR fallback for scanned PDFs
-- [ ] Persist parsed document artifact to `data/v2/parsed/`
-- [ ] Unit tests for section classification and paragraph ID assignment
-- [ ] Integration test on LoRA paper (2106.09685)
 
 ---
 

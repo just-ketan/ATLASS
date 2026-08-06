@@ -26,9 +26,15 @@ Current sprint. Goal: parsed documents → fine-grained memory → ranked retrie
 | P1-T09 | Persist ParsedDocument to `data/v2/parsed/{paper_id}/` | 1 | done | `backend/atlasse_v2/parsing/` |
 | P1-T10 | Unit tests: section classification accuracy | 1 | done | `backend/tests/` |
 | P1-T11 | Unit tests: paragraph ID uniqueness and coverage | 1 | done | `backend/tests/` |
-| P1-T12 | Integration test: parse LoRA paper (2106.09685) | 1 | pending | `backend/tests/parsing/` |
-| P5-T01 | Implement ResearchMemory builder from ParsedDocument | 5 | pending | `backend/atlasse_v2/memory/` |
-| P5-T02 | Split into chunk types: paragraph, table, caption, equation, algorithm | 5 | pending | `backend/atlasse_v2/memory/` |
+| P1-T12 | Integration test: parse LoRA paper (2106.09685) | 1 | done | `backend/tests/test_integration.py` |
+| P5-T01 | Implement ResearchMemory builder from ParsedDocument | 5 | done | `backend/atlasse_v2/memory/` |
+| P5-T02 | Split into chunk types: paragraph, table, caption, equation, algorithm | 5 | in_progress | `backend/atlasse_v2/memory/` |
+| P2-T03 | Replace heuristic entity extraction with Phase 3 extractor output | 2 | done | `backend/atlasse_v2/graph/` |
+| P2-T04 | Implement edge inference (uses_dataset, compares_against, etc.) | 2 | done | `backend/atlasse_v2/graph/` |
+| P4-T02 | Implement dense embedding retriever | 4 | done | `backend/atlasse_v2/retrieval/` |
+| P7-T01 | Implement SpecBuilder composing all extractors | 7 | done | `backend/atlasse_v2/specification/` |
+| P8-T01 | Architecture graph → module decomposition | 8 | in_progress | `backend/atlasse_v2/blueprint/` |
+| P9-T01 | Implement model family detector (20+ families) | 9 | done | `backend/atlasse_v2/baseline/` |
 | P5-T03 | Attach metadata: chunk_id, page, section, paragraph, entities, keywords, citations | 5 | pending | `backend/atlasse_v2/memory/` |
 | P5-T04 | Generate embeddings and build FAISS index | 5 | pending | `backend/atlasse_v2/memory/` |
 | P5-T05 | Persist memory index to `data/v2/memory_indices/{paper_id}/` | 5 | pending | `backend/atlasse_v2/memory/` |

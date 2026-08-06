@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from atlasse_v2.core.types import SectionType
+from atlasse_v2.qa.citation_verifier import verify_citations
+from atlasse_v2.qa.evidence_validator import filter_valid_evidence, validate_evidence
 from atlasse_v2.retrieval.evidence_ranker import EvidenceRanker
 
 MISSING_RESPONSE = "The paper does not specify."
+MIN_SCORE_THRESHOLD = 0.8
 
 
 class QAPipeline:
@@ -18,39 +22,86 @@ class QAPipeline:
         "future_work": "what future work is proposed",
     }
 
-    def __init__(self, ranker: EvidenceRanker):
+    INTENT_ENTITY_TYPES = {
+        "problem": ["task", "contribution"],
+        "dataset": ["dataset"],
+        "metric": ["metric", "experiment"],
+        "method": ["method", "model", "module"],
+        "architecture": ["model", "module"],
+        "limitation": ["limitation"],
+        "future_work": ["future_work"],
+        "definition": ["contribution", "task"],
+    }
+
+    def __init__(self, ranker: EvidenceRanker, score_threshold: float = MIN_SCORE_THRESHOLD):
         self.ranker = ranker
+        self.score_threshold = score_threshold
 
     def ask(self, question: str, paper_id: str) -> dict:
         intent = self._classify_intent(question)
         sections = EvidenceRanker.INTENT_SECTIONS.get(intent)
-        evidence = self.ranker.retrieve(
+        evidence, trace = self.ranker.retrieve_with_trace(
             query=question,
             paper_id=paper_id,
             sections=sections,
             top_k=5,
         )
+
         if not evidence:
-            return {
-                "answer": MISSING_RESPONSE,
-                "confidence": 0.0,
-                "citations": [],
-                "provenance": [],
-                "intent": intent,
-            }
+            return self._missing_response(intent, trace, "no_retrieval")
+
+        valid, reason = validate_evidence(intent, evidence)
+        if not valid:
+            return self._missing_response(intent, trace, reason)
+
+        evidence = filter_valid_evidence(intent, evidence)
+        top_score = trace.get("ranked", [{}])[0].get("score", 0.0) if trace else 0.0
+        if top_score < self.score_threshold:
+            return self._missing_response(intent, trace, "low_confidence", top_score)
 
         best = evidence[0]
+        answer = best.text[:1500]
+        citation_check = verify_citations(answer, evidence)
+        if not citation_check["verified"]:
+            return self._missing_response(intent, trace, citation_check["reason"], top_score)
+
         return {
-            "answer": best.text[:1500],
-            "confidence": 0.7,
+            "answer": answer,
+            "confidence": min(top_score / 5.0, 1.0),
             "citations": best.citations,
             "provenance": [{
                 "chunk_id": best.chunk_id,
                 "page": best.page,
-                "section": best.section.value if hasattr(best.section, "value") else best.section,
+                "section": best.section.value if isinstance(best.section, SectionType) else best.section,
                 "paragraph_id": best.paragraph_id,
+                "chunk_type": best.chunk_type,
             }],
             "intent": intent,
+            "entity_types": self.INTENT_ENTITY_TYPES.get(intent, []),
+            "retrieval_score": top_score,
+            "citation_verified": True,
+        }
+
+    def _missing_response(
+        self,
+        intent: str,
+        trace: dict | None,
+        reason: str,
+        score: float = 0.0,
+    ) -> dict:
+        return {
+            "answer": MISSING_RESPONSE,
+            "confidence": 0.0,
+            "citations": [],
+            "provenance": [],
+            "intent": intent,
+            "missing_reason": reason,
+            "retrieval_score": score,
+            "citation_verified": False,
+            "trace_summary": {
+                "candidate_count": trace.get("candidate_count") if trace else 0,
+                "cross_encoder_scores": trace.get("cross_encoder_scores") if trace else [],
+            },
         }
 
     def _classify_intent(self, question: str) -> str:

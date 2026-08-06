@@ -9,10 +9,13 @@ Each extractor:
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import ABC
+
+import re
 
 from atlasse_v2.core.models import ExtractedField, ResearchChunk
 from atlasse_v2.core.types import EntityType, SectionType
+from atlasse_v2.extraction.evidence_gate import extract_span_bound_sentences
 
 
 class BaseExtractor(ABC):
@@ -54,9 +57,13 @@ class BaseExtractor(ABC):
                 result.value = None
         return result
 
-    @abstractmethod
     def _extract_from_evidence(self, evidence: list[ResearchChunk]) -> ExtractedField:
-        """Extract field value strictly from provided evidence spans."""
+        terms = self._evidence_terms()
+        return extract_span_bound_sentences(evidence, query_terms=terms, max_sentences=3)
+
+    def _evidence_terms(self) -> list[str]:
+        raw = (self.evidence_query or self.field_name or "").lower()
+        return [t for t in re.findall(r"[a-z0-9]+", raw) if len(t) > 2]
 
     def _missing_field(self) -> ExtractedField:
         return ExtractedField(

@@ -125,6 +125,70 @@ def create_app(data_dir: str = "data/v2"):
         _, trace = ranker.retrieve_with_trace(q, paper_id=paper_id, top_k=5)
         return trace
 
+    @app.get("/v2/papers/{paper_id}/blueprint")
+    def get_blueprint(paper_id: str):
+        blueprint = orchestrator.pipeline.get_blueprint(paper_id)
+        if blueprint is None:
+            raise HTTPException(status_code=404, detail="Blueprint not found — ingest first")
+        return blueprint
+
+    @app.get("/v2/papers/{paper_id}/baseline")
+    def get_baseline(paper_id: str):
+        baseline = orchestrator.pipeline.get_baseline(paper_id)
+        if baseline is None:
+            raise HTTPException(status_code=404, detail="Baseline not found — ingest first")
+        return baseline
+
+    @app.get("/v2/papers/{paper_id}/blueprint/diff")
+    def blueprint_diff(paper_id: str):
+        result = orchestrator.pipeline.get_blueprint_diff(paper_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Blueprint not found — ingest first")
+        return result
+
+    @app.get("/v2/papers/{paper_id}/baseline/project")
+    def baseline_project_manifest(paper_id: str):
+        base = Path(data_dir) / "baselines" / paper_id / "project" / "manifest.json"
+        if not base.exists():
+            raise HTTPException(status_code=404, detail="Baseline project not found — ingest first")
+        import json
+        return json.loads(base.read_text())
+
+    @app.get("/v2/papers/{paper_id}/reproduction")
+    def get_reproduction(paper_id: str):
+        report = orchestrator.pipeline.get_reproduction_report(paper_id)
+        if report is None:
+            raise HTTPException(status_code=404, detail="Reproduction report not found — ingest first")
+        return report
+
+    @app.post("/v2/benchmark/smoke")
+    def run_benchmark_smoke():
+        from atlasse_v2.evaluation.benchmark import BenchmarkSuite
+        from atlasse_v2.evaluation.fixtures import make_lora_sample_document
+        from atlasse_v2.evaluation.score_store import ScoreStore
+        suite = BenchmarkSuite(score_store=ScoreStore(path=f"{data_dir}/benchmark/scores.json"))
+        return suite.run_smoke_regression(make_lora_sample_document)
+
+    @app.get("/v2/benchmark/scores")
+    def benchmark_scores():
+        from atlasse_v2.evaluation.score_store import ScoreStore
+        store = ScoreStore(path=f"{data_dir}/benchmark/scores.json")
+        return store.load()
+
+    @app.get("/v2/papers/{paper_id}/missing-fields")
+    def missing_fields(paper_id: str):
+        result = orchestrator.pipeline.get_missing_fields(paper_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Specification not found — ingest first")
+        return result
+
+    @app.get("/v2/papers/{paper_id}/confidence-heatmap")
+    def confidence_heatmap(paper_id: str):
+        result = orchestrator.pipeline.get_confidence_heatmap(paper_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Specification not found — ingest first")
+        return result
+
     return app
 
 

@@ -1,4 +1,4 @@
-"""Phase 9: Fill family-specific templates from research graph."""
+"""Phase 9: Fill family-specific templates from research graph and write project files."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from atlasse_v2.baseline.family_detector import FamilyDetector
+from atlasse_v2.baseline.template_renderer import write_project
 from atlasse_v2.core.types import ModelFamily
 from atlasse_v2.graph.semantic_graph import SemanticPaperGraph
 
@@ -36,12 +37,12 @@ class BaselineGenerator:
                 "message": f"Model family '{family.value}' is not yet supported. Refusing to generate misleading code.",
                 "assumptions": [],
                 "files": [],
+                "project_dir": None,
             }
 
-        assumptions = []
-        training = self.spec.get("fields", {}).get("training", {})
-        if training.get("missing"):
-            assumptions.append("Training hyperparameters not found in paper — defaults required.")
+        assumptions = self._collect_assumptions()
+        file_specs = self._template_files(family)
+        evidence_ids = list(self.graph.entities.keys())
 
         return {
             "paper_id": paper_id,
@@ -49,16 +50,52 @@ class BaselineGenerator:
             "supported": True,
             "confidence": confidence,
             "assumptions": assumptions,
-            "files": self._template_files(family),
+            "files": file_specs,
             "manifest": {
-                "evidence_entities": list(self.graph.entities.keys()),
+                "evidence_entities": evidence_ids,
                 "spec_version": self.spec.get("version"),
             },
+            "project_dir": f"project",
         }
+
+    def _collect_assumptions(self) -> list[str]:
+        assumptions = []
+        for field_name in ("training", "loss", "dataset", "architecture"):
+            field = self.spec.get("fields", {}).get(field_name, {})
+            if field.get("missing"):
+                assumptions.append(f"{field_name}: not specified in paper — using defaults.")
+            for a in field.get("assumptions", []):
+                assumptions.append(a)
+        return assumptions
+
+    def save(self, baseline: dict, base_dir: str | None = None) -> str:
+        paper_id = baseline["paper_id"]
+        base = Path(base_dir or self.BASELINE_DIR) / paper_id
+        base.mkdir(parents=True, exist_ok=True)
+        path = base / "baseline.json"
+        path.write_text(json.dumps({k: v for k, v in baseline.items() if k != "file_manifest"}, indent=2))
+
+        if baseline.get("supported") and baseline.get("files"):
+            family = ModelFamily(baseline["family"])
+            project_dir = base / baseline.get("project_dir", "project")
+            manifest = write_project(
+                project_dir=project_dir,
+                paper_id=paper_id,
+                family=family,
+                file_specs=baseline["files"],
+                spec=self.spec,
+                assumptions=baseline.get("assumptions", []),
+                evidence_entity_ids=baseline.get("manifest", {}).get("evidence_entities", []),
+            )
+            baseline["file_manifest"] = manifest
+            path.write_text(json.dumps(baseline, indent=2))
+
+        return str(path)
 
     @staticmethod
     def _template_files(family: ModelFamily) -> list[dict]:
         common = [
+            {"path": "src/data/dataset.py", "template": "dataset"},
             {"path": "src/train.py", "template": "train"},
             {"path": "src/evaluate.py", "template": "evaluate"},
             {"path": "config.yaml", "template": "config"},
@@ -74,18 +111,10 @@ class BaselineGenerator:
                 {"path": "src/model/attention.py", "template": "attention"},
             ],
             ModelFamily.MLP: [
-                {"path": "src/model/mlp.py", "template": "mlp"},
+                {"path": "src/model/mlp.py", "template": "transformer"},
             ],
             ModelFamily.CNN: [
-                {"path": "src/model/cnn.py", "template": "cnn"},
+                {"path": "src/model/cnn.py", "template": "transformer"},
             ],
         }
         return family_files.get(family, []) + common
-
-    def save(self, baseline: dict, base_dir: str | None = None) -> str:
-        paper_id = baseline["paper_id"]
-        base = Path(base_dir or self.BASELINE_DIR) / paper_id
-        base.mkdir(parents=True, exist_ok=True)
-        path = base / "baseline.json"
-        path.write_text(json.dumps(baseline, indent=2))
-        return str(path)
